@@ -5,7 +5,7 @@ metadata:
 data:
   tenguconfig.yaml: |
     initContainers:
-      - name: tengu-initContainer
+      - name: tengu-initcontainer
         image: busybox
         imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'cat']

@@ -39,7 +39,7 @@ const (
 
 //Config ...
 type Config struct {
-	initContainers []corev1.Container `yaml:"initContainers"`
+	InitContainers []corev1.Container `yaml:"initContainers"`
 }
 
 //WebhookServer ...
@@ -174,7 +174,7 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 func createPatch(pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
-	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.initContainers, "/spec/initContainers")...)
+	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers")...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
 
 	return json.Marshal(patch)
@@ -203,7 +203,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		}
 	}
 	// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
-	applyDefaultsWorkaround(whsvr.initcontainerConfig.initContainers)
+	applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
 	annotations := map[string]string{admissionWebhookAnnotationStatusKey: "injected"}
 	patchBytes, err := createPatch(&pod, whsvr.initcontainerConfig, annotations)
 
