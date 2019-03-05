@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tengu-injector-webhook-configmap
+data:
+  tenguconfig.yaml: |
+    initContainers:
+      - name: tengu-initContainer
+        image: busybox
+        imagePullPolicy: IfNotPresent
+        command: ['sh', '-c', 'cat']

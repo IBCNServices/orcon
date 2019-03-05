@@ -1,14 +1,14 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
-  name: sidecar-injector-webhook-cfg
+  name: tengu-injector-webhook-cfg
   labels:
-    app: sidecar-injector
+    app: tengu-injector
 webhooks:
-  - name: sidecar-injector.morven.me
+  - name: tenug-injector.io
     clientConfig:
       service:
-        name: sidecar-injector-webhook-svc
+        name: tengu-injector-webhook-svc
         namespace: default
         path: "/mutate"
       caBundle: ${CA_BUNDLE}
@@ -19,4 +19,4 @@ webhooks:
         resources: ["pods"]
     namespaceSelector:
       matchLabels:
-        sidecar-injector: enabled
+        tengu-injector: enabled
