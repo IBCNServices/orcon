@@ -28,7 +28,7 @@ func main() {
 		glog.Errorf("Filed to load configuration: %v", err)
 	}
 
-	glog.Infof("initcontainerConfig length: %d", len(initcontainerConfig.InitContainers))
+	glog.Infof("Number of initcontainers: %d", len(initcontainerConfig.InitContainers))
 
 	pair, err := tls.LoadX509KeyPair(parameters.certFile, parameters.keyFile)
 	if err != nil {

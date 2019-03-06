@@ -25,6 +25,8 @@ var (
 	deserializer  = codecs.UniversalDeserializer()
 
 	defaulter = runtime.ObjectDefaulter(runtimeScheme)
+
+	//clientset = createK8sClient()
 )
 
 var ignoredNamespaces = []string{
@@ -33,9 +35,18 @@ var ignoredNamespaces = []string{
 }
 
 const (
-	admissionWebhookAnnotationInjectKey = "tengu-injector-webhook/inject"
-	admissionWebhookAnnotationStatusKey = "tengu-injector-webhook/status"
+	//admissionWebhookAnnotationInjectKey = "tengu-injector-webhook/inject"
+	admissionWebhookAnnotationInjectKey    = "consumes"
+	admissionWebhookAnnotationRelationsKey = "relations"
+	admissionWebhookAnnotationStatusKey    = "tengu-injector-webhook/status"
 )
+
+//Use this map to determine REQUIRED_VARS
+var interfaceLookupDict = func() map[string][]string {
+	return map[string][]string{
+		"sse": []string{"BASE_URL"},
+	}
+}
 
 //Config ...
 type Config struct {
@@ -68,6 +79,19 @@ func init() {
 
 	_ = v1.AddToScheme(runtimeScheme)
 }
+
+/*
+func createK8sClient() *ClientSet {
+	config, err = rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	return clientset
+}*/
 
 // (https://github.com/kubernetes/kubernetes/issues/57982)
 func applyDefaultsWorkaround(containers []corev1.Container) {
@@ -115,11 +139,10 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	if strings.ToLower(status) == "injected" {
 		required = false
 	} else {
-		switch strings.ToLower(annotations[admissionWebhookAnnotationInjectKey]) {
-		default:
-			required = false
-		case "y", "yes", "true", "on":
+		if _, ok := annotations[admissionWebhookAnnotationInjectKey]; ok {
 			required = true
+		} else {
+			required = false
 		}
 	}
 
@@ -127,18 +150,49 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	return required
 }
 
-func addInitContainer(target, added []corev1.Container, basePath string) (patch []patchOperation) {
+func getRelationInfo()
+
+func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
+	envVars := []corev1.EnvVar{}
+
+	tenguInterface := annotations[admissionWebhookAnnotationInjectKey]
+	glog.Infof("tenguInterface: %s", tenguInterface)
+
+	envVar := corev1.EnvVar{
+		Name:  "TENGU_REQUIRED_VARS",
+		Value: strings.Join(interfaceLookupDict()[tenguInterface], ","),
+	}
+	envVars = append(envVars, envVar)
+	// Should be checked if this info is available
+	/*
+		for _, env := range interfaceLookupDict()[tenguInterface] {
+			glog.Infof("Handling env var: %s", env)
+			envVar := corev1.EnvVar{
+				Name:  env,
+				Value: "TEST",
+			}
+			envVars = append(envVars, envVar)
+		}*/
+
+	return envVars
+}
+
+func addInitContainer(target, added []corev1.Container, basePath string, envVars []corev1.EnvVar) (patch []patchOperation) {
 	glog.Infof("Length of added containers: %d", len(added))
+	glog.Infof("Length of envVars: %d", len(envVars))
 	first := len(target) == 0
 	var value interface{}
 	for _, add := range added {
+		add.Env = append(add.Env, envVars...)
 		value = add
 		path := basePath
 		if first {
+			glog.Infof("This is first")
 			first = false
 			value = []corev1.Container{add}
 		} else {
 			path = path + "/-"
+			glog.Infof("This is else, path: %s", path)
 		}
 		patch = append(patch, patchOperation{
 			Op:    "add",
@@ -174,7 +228,8 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 func createPatch(pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
-	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers")...)
+	envVars := populateEnvVars(pod.GetAnnotations())
+	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers", envVars)...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
 
 	return json.Marshal(patch)

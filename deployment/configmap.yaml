@@ -8,4 +8,4 @@ data:
       - name: tengu-initcontainer
         image: busybox
         imagePullPolicy: IfNotPresent
-        command: ['sh', '-c', 'cat']
+        command: ['sh', '-c', 'printenv ; while true; do sleep 86400; done']
