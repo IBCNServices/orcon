@@ -31,11 +31,15 @@
 
 [[constraint]]
   name = "k8s.io/api"
-  branch = "release-1.9"
+  branch = "release-1.13"
 
 [[constraint]]
+  branch = "release-1.13"
   name = "k8s.io/apimachinery"
-  branch = "release-1.9"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "10.0.0"
 
 [prune]
   go-tests = true
@@ -45,3 +49,7 @@
 [[override]]
   name = "github.com/docker/distribution"
   branch = "master"
+
+[[override]]
+name = "github.com/json-iterator/go"
+revision = "f2b4162afba35581b6d4a50d3b8f34e33c144682"

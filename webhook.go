@@ -17,6 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 var (
@@ -26,7 +28,7 @@ var (
 
 	defaulter = runtime.ObjectDefaulter(runtimeScheme)
 
-	//clientset = createK8sClient()
+	clientset = createK8sClient()
 )
 
 var ignoredNamespaces = []string{
@@ -80,18 +82,18 @@ func init() {
 	_ = v1.AddToScheme(runtimeScheme)
 }
 
-/*
-func createK8sClient() *ClientSet {
-	config, err = rest.InClusterConfig()
+func createK8sClient() *kubernetes.Clientset {
+	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
+
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
 	}
 	return clientset
-}*/
+}
 
 // (https://github.com/kubernetes/kubernetes/issues/57982)
 func applyDefaultsWorkaround(containers []corev1.Container) {
@@ -150,7 +152,25 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	return required
 }
 
-func getRelationInfo()
+func getService(service string) *v1.Service {
+	svc, err := clientset.CoreV1().Services(metav1.NamespaceDefault).Get(service, metav1.GetOptions{})
+	if err != nil {
+		glog.Infof("Service (%s) does not exist.", service)
+		return nil
+	}
+	glog.Infof("Service (%s) exists!", service)
+	return svc
+}
+
+func fillEnvVars(envVars []corev1.EnvVar, service *v1.Service) {
+	annotations := service.GetAnnotations()
+
+	for _, envVar := range envVars {
+		if _, ok := annotations[envVar.Name]; ok {
+			envVar.Value = annotations[envVar.Name]
+		}
+	}
+}
 
 func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
@@ -163,16 +183,15 @@ func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
 		Value: strings.Join(interfaceLookupDict()[tenguInterface], ","),
 	}
 	envVars = append(envVars, envVar)
-	// Should be checked if this info is available
-	/*
-		for _, env := range interfaceLookupDict()[tenguInterface] {
-			glog.Infof("Handling env var: %s", env)
-			envVar := corev1.EnvVar{
-				Name:  env,
-				Value: "TEST",
-			}
-			envVars = append(envVars, envVar)
-		}*/
+
+	relationName := annotations[admissionWebhookAnnotationRelationsKey]
+	glog.Infof("relationName: %s", relationName)
+	if relationName != "" {
+		svc := getService(relationName)
+		if svc != nil {
+			fillEnvVars(envVars, svc)
+		}
+	}
 
 	return envVars
 }
