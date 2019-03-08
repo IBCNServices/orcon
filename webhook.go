@@ -37,8 +37,8 @@ var ignoredNamespaces = []string{
 }
 
 const (
-	//admissionWebhookAnnotationInjectKey = "tengu-injector-webhook/inject"
-	admissionWebhookAnnotationInjectKey    = "consumes"
+	admissionWebhookAnnotationConsumeKey   = "consumes"
+	admissionWebhookAnnotationProvideKey   = "provides"
 	admissionWebhookAnnotationRelationsKey = "relations"
 	admissionWebhookAnnotationStatusKey    = "tengu-injector-webhook/status"
 )
@@ -141,7 +141,7 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	if strings.ToLower(status) == "injected" {
 		required = false
 	} else {
-		if _, ok := annotations[admissionWebhookAnnotationInjectKey]; ok {
+		if _, ok := annotations[admissionWebhookAnnotationConsumeKey]; ok {
 			required = true
 		} else {
 			required = false
@@ -152,22 +152,43 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 	return required
 }
 
-func getService(service string) *v1.Service {
+// validService will check if the service exists and has a correct interface
+func validService(service string, interfaceName string) *v1.Service {
 	svc, err := clientset.CoreV1().Services(metav1.NamespaceDefault).Get(service, metav1.GetOptions{})
 	if err != nil {
 		glog.Infof("Service (%s) does not exist.", service)
+		glog.Infof("%s", err.Error())
 		return nil
 	}
 	glog.Infof("Service (%s) exists!", service)
+	annotations := svc.GetAnnotations()
+	if _, ok := annotations[admissionWebhookAnnotationProvideKey]; ok {
+		if annotations[admissionWebhookAnnotationProvideKey] != interfaceName {
+			glog.Infof("Service (%s) does not have matching interface: %s", service, interfaceName)
+			return nil
+		}
+	} else {
+		glog.Infof("Service (%s) does not have annotations: %s", service, admissionWebhookAnnotationProvideKey)
+		return nil
+	}
+	glog.Infof("Service (%s) matched", service)
+
 	return svc
 }
 
-func fillEnvVars(envVars []corev1.EnvVar, service *v1.Service) {
+func fillEnvVars(envVars *[]corev1.EnvVar, service *v1.Service, interfaceName string) {
 	annotations := service.GetAnnotations()
 
-	for _, envVar := range envVars {
-		if _, ok := annotations[envVar.Name]; ok {
-			envVar.Value = annotations[envVar.Name]
+	for _, env := range interfaceLookupDict()[interfaceName] {
+		glog.Infof("Checking if annotation key (%s) exists", env)
+		if _, ok := annotations[env]; ok {
+			glog.Infof("Key exists, adding to envVars")
+			*envVars = append(*envVars, corev1.EnvVar{
+				Name:  env,
+				Value: annotations[env],
+			})
+		} else {
+			glog.Infof("Key does not exist")
 		}
 	}
 }
@@ -175,7 +196,7 @@ func fillEnvVars(envVars []corev1.EnvVar, service *v1.Service) {
 func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
-	tenguInterface := annotations[admissionWebhookAnnotationInjectKey]
+	tenguInterface := annotations[admissionWebhookAnnotationConsumeKey]
 	glog.Infof("tenguInterface: %s", tenguInterface)
 
 	envVar := corev1.EnvVar{
@@ -185,14 +206,13 @@ func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
 	envVars = append(envVars, envVar)
 
 	relationName := annotations[admissionWebhookAnnotationRelationsKey]
-	glog.Infof("relationName: %s", relationName)
+	glog.Infof("Looking for service: %s", relationName)
 	if relationName != "" {
-		svc := getService(relationName)
+		svc := validService(relationName, tenguInterface)
 		if svc != nil {
-			fillEnvVars(envVars, svc)
+			fillEnvVars(&envVars, svc, tenguInterface)
 		}
 	}
-
 	return envVars
 }
 
@@ -206,12 +226,10 @@ func addInitContainer(target, added []corev1.Container, basePath string, envVars
 		value = add
 		path := basePath
 		if first {
-			glog.Infof("This is first")
 			first = false
 			value = []corev1.Container{add}
 		} else {
 			path = path + "/-"
-			glog.Infof("This is else, path: %s", path)
 		}
 		patch = append(patch, patchOperation{
 			Op:    "add",

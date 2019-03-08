@@ -1,0 +1,10 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: "sse-endpoint"
+  annotations:
+    provides: "sse"
+    BASE_URL: "idlab-iot.tengu.io"
+spec:
+  type: ExternalName
+  externalName: idlab-iot.tengu.io

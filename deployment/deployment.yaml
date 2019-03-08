@@ -11,6 +11,7 @@ spec:
       labels:
         app: tengu-injector
     spec:
+      serviceAccountName: tengu-injector
       containers:
         - name: tengu-injector
           image: sborny/tengu-injector:v1
