@@ -243,7 +243,7 @@ func addEnvContainer(target []corev1.Container, basePath string, envVars []corev
 	for count := range target {
 		patch = append(patch, patchOperation{
 			Op:    "add",
-			Path:  basePath + "/" + strconv.Itoa(count) + "/env", //TODO test https://github.com/kubernetes/kubernetes/issues/63247
+			Path:  basePath + "/" + strconv.Itoa(count) + "/env",
 			Value: envVars,
 		})
 	}
