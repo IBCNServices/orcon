@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
@@ -217,8 +218,6 @@ func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
 }
 
 func addInitContainer(target, added []corev1.Container, basePath string, envVars []corev1.EnvVar) (patch []patchOperation) {
-	glog.Infof("Length of added containers: %d", len(added))
-	glog.Infof("Length of envVars: %d", len(envVars))
 	first := len(target) == 0
 	var value interface{}
 	for _, add := range added {
@@ -237,6 +236,18 @@ func addInitContainer(target, added []corev1.Container, basePath string, envVars
 			Value: value,
 		})
 	}
+	return patch
+}
+
+func addEnvContainer(target []corev1.Container, basePath string, envVars []corev1.EnvVar) (patch []patchOperation) {
+	for count := range target {
+		patch = append(patch, patchOperation{
+			Op:    "add",
+			Path:  basePath + "/" + strconv.Itoa(count) + "/env", //TODO test https://github.com/kubernetes/kubernetes/issues/63247
+			Value: envVars,
+		})
+	}
+
 	return patch
 }
 
@@ -268,6 +279,7 @@ func createPatch(pod *corev1.Pod, initcontainerConfig *Config, annotations map[s
 	envVars := populateEnvVars(pod.GetAnnotations())
 	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers", envVars)...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
+	patch = append(patch, addEnvContainer(pod.Spec.Containers, "/spec/containers", envVars)...)
 
 	return json.Marshal(patch)
 }
