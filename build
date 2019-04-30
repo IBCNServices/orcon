@@ -1,6 +1,8 @@
+#!/usr/bin/env bash
+set -e
 dep ensure
 CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o relations-mutating-webhook .
-docker build --no-cache -t sborny/tengu-injector:v1 .
+docker build --no-cache -t $1 .
 rm -rf relations-mutating-webhook
 
-docker push sborny/tengu-injector:v1
+docker push $1

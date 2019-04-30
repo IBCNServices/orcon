@@ -5,7 +5,7 @@ metadata:
   labels:
     app: tengu-injector
 webhooks:
-  - name: tenug-injector.io
+  - name: injector.tengu-injector.io
     clientConfig:
       service:
         name: tengu-injector-webhook-svc
