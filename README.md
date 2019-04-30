@@ -68,12 +68,13 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
    kubectl create -f deployment/rbac.yaml
    ```
 
-
 4. Example
 
    ```bash
-   kubectl create -f deployment/external-service.yaml
-   kubectl create -f deployment/sleep-deployment.yaml
+   kubectl create namespace k8s-tengu-test
+   kubectl label namespace k8s-tengu-test tengu-injector=enabled
+   kubectl -n k8s-tengu-test create -f deployment/external-service.yaml
+   kubectl -n k8s-tengu-test create -f deployment/sleep-deployment.yaml
    ```
 
 ## TODO list
