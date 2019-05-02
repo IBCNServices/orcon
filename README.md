@@ -44,7 +44,7 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 
    ```bash
    ./deployment/webhook-create-signed-cert.sh \
-       --service sidecar-injector-webhook-svc \
+       --service tengu-injector-webhook-svc \
        --secret tengu-injector-webhook-certs \
        --namespace default
    ```
