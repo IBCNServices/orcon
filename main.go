@@ -25,14 +25,14 @@ func main() {
 
 	initcontainerConfig, err := loadConfig(parameters.initcontainerCfgFile)
 	if err != nil {
-		glog.Errorf("Filed to load configuration: %v", err)
+		glog.Errorf("Failed to load configuration: %v", err)
 	}
 
-	glog.Infof("Number of initcontainers: %d", len(initcontainerConfig.InitContainers))
+	glog.Infof("Number of Init Containers: %d", len(initcontainerConfig.InitContainers))
 
 	pair, err := tls.LoadX509KeyPair(parameters.certFile, parameters.keyFile)
 	if err != nil {
-		glog.Errorf("Filed to load key pair: %v", err)
+		glog.Errorf("Failed to load key pair: %v", err)
 	}
 
 	whsvr := &WebhookServer{
@@ -43,23 +43,23 @@ func main() {
 		},
 	}
 
-	//define http server and server handler
+	// define http server and server handler
 	mux := http.NewServeMux()
 	mux.HandleFunc("/mutate", whsvr.serve)
 	whsvr.server.Handler = mux
 
-	// start webhook server in new rountine
+	// start webhook server in new routine
 	go func() {
 		if err := whsvr.server.ListenAndServeTLS("", ""); err != nil {
-			glog.Errorf("Filed to listen and serve webhook server: %v", err)
+			glog.Errorf("Failed to listen and serve webhook server: %v", err)
 		}
 	}()
 
-	// listening OS shutdown singal
+	// listening OS shutdown signal
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 	<-signalChan
 
-	glog.Infof("Got OS shutdown signal, shutting down wenhook server gracefully...")
+	glog.Infof("Got OS shutdown signal, shutting down webhook server gracefully...")
 	whsvr.server.Shutdown(context.Background())
 }
