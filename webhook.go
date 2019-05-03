@@ -37,13 +37,6 @@ var ignoredNamespaces = []string{
 	metav1.NamespacePublic,
 }
 
-const (
-	admissionWebhookAnnotationConsumeKey   = "consumes"
-	admissionWebhookAnnotationProvideKey   = "provides"
-	admissionWebhookAnnotationRelationsKey = "relations"
-	admissionWebhookAnnotationStatusKey    = "tengu-injector-webhook/status"
-)
-
 //Use this map to determine REQUIRED_VARS
 var interfaceLookupDict = func() map[string][]string {
 	return map[string][]string{
@@ -122,12 +115,14 @@ func loadConfig(configFile string) (*Config, error) {
 }
 
 // Check whether the target resource needs to be mutated
-func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
+func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []string {
+	glog.Infof("Called")
+	processingRequired := []string{}
 	// Skip special kubernetes system namespaces
 	for _, namespace := range ignoredList {
 		if metadata.Namespace == namespace {
 			glog.Infof("Skip mutation for %v for it's in special namespace: %v", metadata.Name, metadata.Namespace)
-			return false
+			return processingRequired
 		}
 	}
 	annotations := metadata.GetAnnotations()
@@ -135,27 +130,26 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) bool {
 		annotations = map[string]string{}
 	}
 
-	status := annotations[admissionWebhookAnnotationStatusKey]
+	status := strings.ToLower(annotations["injector.tengu.io/status"])
+	consumes := strings.ToLower(annotations["tengu.io/consumes"])
+	provides := strings.ToLower(annotations["tengu.io/provides"])
 
-	// Determine whether to perform mutation based on annotation for the target resource
-	var required bool
-	if strings.ToLower(status) == "injected" {
-		required = false
-	} else {
-		if _, ok := annotations[admissionWebhookAnnotationConsumeKey]; ok {
-			required = true
-		} else {
-			required = false
-		}
+	glog.Infof("%s; %s; %s", status, consumes, provides)
+
+	if consumes != "" && !(status == "injected") {
+		processingRequired = append(processingRequired, "consumes")
+	}
+	if provides != "" {
+		processingRequired = append(processingRequired, "provides")
 	}
 
-	glog.Infof("Mutation policy for %v/%v: status: %q required:%v", metadata.Namespace, metadata.Name, status, required)
-	return required
+	glog.Infof("Mutation policy for %v/%v: status: %q required: %v", metadata.Namespace, metadata.Name, status, processingRequired)
+	return processingRequired
 }
 
-// validService will check if the service exists and has a correct interface
-func validService(service string, interfaceName string) *v1.Service {
-	svc, err := clientset.CoreV1().Services(metav1.NamespaceDefault).Get(service, metav1.GetOptions{})
+// getValidService will check if the service exists and has a correct interface
+func getValidService(service string, interfaceName string, namespace string) *v1.Service {
+	svc, err := clientset.CoreV1().Services(namespace).Get(service, metav1.GetOptions{})
 	if err != nil {
 		glog.Infof("Service (%s) does not exist.", service)
 		glog.Infof("%s", err.Error())
@@ -163,13 +157,13 @@ func validService(service string, interfaceName string) *v1.Service {
 	}
 	glog.Infof("Service (%s) exists!", service)
 	annotations := svc.GetAnnotations()
-	if _, ok := annotations[admissionWebhookAnnotationProvideKey]; ok {
-		if annotations[admissionWebhookAnnotationProvideKey] != interfaceName {
+	if _, ok := annotations["tengu.io/provides"]; ok {
+		if annotations["tengu.io/provides"] != interfaceName {
 			glog.Infof("Service (%s) does not have matching interface: %s", service, interfaceName)
 			return nil
 		}
 	} else {
-		glog.Infof("Service (%s) does not have annotations: %s", service, admissionWebhookAnnotationProvideKey)
+		glog.Infof("Service (%s) does not have annotations: %s", service, "tengu.io/provides")
 		return nil
 	}
 	glog.Infof("Service (%s) matched", service)
@@ -194,10 +188,10 @@ func fillEnvVars(envVars *[]corev1.EnvVar, service *v1.Service, interfaceName st
 	}
 }
 
-func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
+func populateEnvVars(annotations map[string]string, namespace string) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
-	tenguInterface := annotations[admissionWebhookAnnotationConsumeKey]
+	tenguInterface := annotations["tengu.io/consumes"]
 	glog.Infof("tenguInterface: %s", tenguInterface)
 
 	envVar := corev1.EnvVar{
@@ -206,10 +200,10 @@ func populateEnvVars(annotations map[string]string) []corev1.EnvVar {
 	}
 	envVars = append(envVars, envVar)
 
-	relationName := annotations[admissionWebhookAnnotationRelationsKey]
-	glog.Infof("Looking for service: %s", relationName)
+	relationName := annotations["tengu.io/relations"]
+	glog.Infof("Looking for service '%s' in namespace '%s'", relationName, namespace)
 	if relationName != "" {
-		svc := validService(relationName, tenguInterface)
+		svc := getValidService(relationName, tenguInterface, namespace)
 		if svc != nil {
 			fillEnvVars(&envVars, svc, tenguInterface)
 		}
@@ -273,10 +267,10 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 	return patch
 }
 
-func createPatch(pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string) ([]byte, error) {
+func createPatch(namespace string, pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
-	envVars := populateEnvVars(pod.GetAnnotations())
+	envVars := populateEnvVars(pod.GetAnnotations(), namespace)
 	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers", envVars)...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
 	patch = append(patch, addEnvContainer(pod.Spec.Containers, "/spec/containers", envVars)...)
@@ -287,6 +281,7 @@ func createPatch(pod *corev1.Pod, initcontainerConfig *Config, annotations map[s
 func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
 	var pod corev1.Pod
+	glog.Infof(string(req.Object.Raw))
 	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
 		return &v1beta1.AdmissionResponse{
@@ -300,33 +295,44 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		req.Kind, req.Namespace, req.Name, pod.Name, req.UID, req.Operation, req.UserInfo)
 
 	//determine whether to perform mutation
-	if !mutationRequired(ignoredNamespaces, &pod.ObjectMeta) {
-		glog.Infof("Skipping mutation for %s/%s due to policy check", pod.Namespace, pod.Name)
-		return &v1beta1.AdmissionResponse{
-			Allowed: true,
+	processingRequired := mutationRequired(ignoredNamespaces, &pod.ObjectMeta)
+	for _, action := range processingRequired {
+		if action == "consumes" {
+			// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
+			applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
+			annotations := map[string]string{"injector.tengu.io/status": "injected"}
+			patchBytes, err := createPatch(req.Namespace, &pod, whsvr.initcontainerConfig, annotations)
+
+			if err != nil {
+				return &v1beta1.AdmissionResponse{
+					Result: &metav1.Status{
+						Message: err.Error(),
+					},
+				}
+			}
+
+			glog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
+			return &v1beta1.AdmissionResponse{
+				Allowed: true,
+				Patch:   patchBytes,
+				PatchType: func() *v1beta1.PatchType {
+					pt := v1beta1.PatchTypeJSONPatch
+					return &pt
+				}(),
+			}
+		} else if action == "provides" {
+			// https://godoc.org/k8s.io/client-go/kubernetes/typed/core/v1#PodInterface
+			// https://godoc.org/k8s.io/apimachinery/pkg/apis/meta/v1#ListOptions
+			// clientset.CoreV1().Pods(namespace).List()
+
+		} else {
+			glog.Warningf("Action %s not recognized", action)
 		}
 	}
-	// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
-	applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
-	annotations := map[string]string{admissionWebhookAnnotationStatusKey: "injected"}
-	patchBytes, err := createPatch(&pod, whsvr.initcontainerConfig, annotations)
 
-	if err != nil {
-		return &v1beta1.AdmissionResponse{
-			Result: &metav1.Status{
-				Message: err.Error(),
-			},
-		}
-	}
-
-	glog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
+	glog.Infof("Skipping mutation for %s/%s due to policy check", pod.Namespace, pod.Name)
 	return &v1beta1.AdmissionResponse{
 		Allowed: true,
-		Patch:   patchBytes,
-		PatchType: func() *v1beta1.PatchType {
-			pt := v1beta1.PatchTypeJSONPatch
-			return &pt
-		}(),
 	}
 }
 
@@ -377,7 +383,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 		glog.Errorf("Can't encode response: %v", err)
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 	}
-	glog.Infof("Ready to write reponse ...")
+	glog.Infof("Ready to write response ...")
 	if _, err := w.Write(resp); err != nil {
 		glog.Errorf("Can't write response: %v", err)
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)

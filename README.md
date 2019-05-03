@@ -77,6 +77,39 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
    kubectl -n k8s-tengu-test create -f deployment/sleep-deployment.yaml
    ```
 
+## Develop locally
+
+1. Install [Telepresence](https://www.telepresence.io/) for swapping the k8s service with a proxy that sends requests to your local machine.
+
+2. Install `proot` for simulating the volume mounts on your local machine.
+
+   ```bash
+   sudo apt install proot
+   ```
+
+3. Start Telepresence
+
+   ```bash
+   telepresence --swap-deployment tengu-injector-webhook-deployment --expose 8080
+   ```
+
+   *Note: Telepresence warns you that vpn-tcp doesn't work with existing vpn's; but it still appears to work with our vpn.*
+
+4. Run script to simulate volume mounts and start Telepresence.
+
+   ```bash
+   cd ~/go/src/gitlab.ilabt.imec.be/sborny/relations-mutating-webhook/
+   ./simulate-volume-mounts.sh
+   ```
+
+5. Build binary outside of Telepresence environment.
+
+6. Run binary inside of Telepresence environment.
+
+   ```bash
+   ./relations-mutating-webhook -tenguCfgFile=/etc/webhook/config/tenguconfig.yaml -tlsCertFile=/etc/webhook/certs/cert.pem -tlsKeyFile=/etc/webhook/certs/key.pem -alsologtostderr -v=4
+   ```
+
 ## TODO list
 
 - Currently the deployments are not restarted when a service becomes available with matching annotations.

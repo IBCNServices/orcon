@@ -7,13 +7,13 @@ spec:
   template:
     metadata:
       annotations:
-        consumes: "sse"
-        relations: "sse-endpoint"
+        tengu.io/consumes: "sse"
+        tengu.io/relations: "sse-endpoint"
       labels:
         app: sleep
     spec:
       containers:
-      - name: sleep
-        image: tutum/curl
-        command: ["/bin/sleep","infinity"]
-        imagePullPolicy: IfNotPresent
+        - name: sleep1
+          image: tutum/curl
+          command: ["/bin/sleep","infinity"]
+          imagePullPolicy: IfNotPresent

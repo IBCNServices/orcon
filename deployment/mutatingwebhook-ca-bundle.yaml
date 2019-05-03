@@ -17,6 +17,10 @@ webhooks:
         apiGroups: [""]
         apiVersions: ["v1"]
         resources: ["pods"]
+      - operations: [ "CREATE" ]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["services"] 
     namespaceSelector:
       matchLabels:
         tengu-injector: enabled
