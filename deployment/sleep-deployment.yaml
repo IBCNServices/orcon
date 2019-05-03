@@ -6,11 +6,10 @@ spec:
   replicas: 1
   template:
     metadata:
-      annotations:
-        tengu.io/consumes: "sse"
-        tengu.io/relations: "sse-endpoint"
       labels:
         app: sleep
+        tengu.io/consumes: "sse"
+        tengu.io/relations: "sse-endpoint"
     spec:
       containers:
         - name: sleep1

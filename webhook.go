@@ -129,10 +129,14 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 	if annotations == nil {
 		annotations = map[string]string{}
 	}
+	labels := metadata.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
 
 	status := strings.ToLower(annotations["injector.tengu.io/status"])
-	consumes := strings.ToLower(annotations["tengu.io/consumes"])
-	provides := strings.ToLower(annotations["tengu.io/provides"])
+	consumes := strings.ToLower(labels["tengu.io/consumes"])
+	provides := strings.ToLower(labels["tengu.io/provides"])
 
 	glog.Infof("%s; %s; %s", status, consumes, provides)
 
@@ -156,14 +160,14 @@ func getValidService(service string, interfaceName string, namespace string) *v1
 		return nil
 	}
 	glog.Infof("Service (%s) exists!", service)
-	annotations := svc.GetAnnotations()
-	if _, ok := annotations["tengu.io/provides"]; ok {
-		if annotations["tengu.io/provides"] != interfaceName {
+	labels := svc.GetLabels()
+	if _, ok := labels["tengu.io/provides"]; ok {
+		if labels["tengu.io/provides"] != interfaceName {
 			glog.Infof("Service (%s) does not have matching interface: %s", service, interfaceName)
 			return nil
 		}
 	} else {
-		glog.Infof("Service (%s) does not have annotations: %s", service, "tengu.io/provides")
+		glog.Infof("Service (%s) does not have labels: %s", service, "tengu.io/provides")
 		return nil
 	}
 	glog.Infof("Service (%s) matched", service)
@@ -188,10 +192,10 @@ func fillEnvVars(envVars *[]corev1.EnvVar, service *v1.Service, interfaceName st
 	}
 }
 
-func populateEnvVars(annotations map[string]string, namespace string) []corev1.EnvVar {
+func populateEnvVars(labels map[string]string, namespace string) []corev1.EnvVar {
 	envVars := []corev1.EnvVar{}
 
-	tenguInterface := annotations["tengu.io/consumes"]
+	tenguInterface := labels["tengu.io/consumes"]
 	glog.Infof("tenguInterface: %s", tenguInterface)
 
 	envVar := corev1.EnvVar{
@@ -200,7 +204,7 @@ func populateEnvVars(annotations map[string]string, namespace string) []corev1.E
 	}
 	envVars = append(envVars, envVar)
 
-	relationName := annotations["tengu.io/relations"]
+	relationName := labels["tengu.io/relations"]
 	glog.Infof("Looking for service '%s' in namespace '%s'", relationName, namespace)
 	if relationName != "" {
 		svc := getValidService(relationName, tenguInterface, namespace)
@@ -270,7 +274,7 @@ func updateAnnotation(target map[string]string, added map[string]string) (patch 
 func createPatch(namespace string, pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
-	envVars := populateEnvVars(pod.GetAnnotations(), namespace)
+	envVars := populateEnvVars(pod.GetLabels(), namespace)
 	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers", envVars)...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
 	patch = append(patch, addEnvContainer(pod.Spec.Containers, "/spec/containers", envVars)...)

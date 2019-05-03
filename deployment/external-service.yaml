@@ -3,8 +3,9 @@ apiVersion: v1
 metadata:
   name: "sse-endpoint"
   annotations:
-    tengu.io/provides: "sse"
     BASE_URL: "idlab-iot.tengu.io"
+  labels:
+    tengu.io/provides: "sse"
 spec:
   type: ExternalName
   externalName: idlab-iot.tengu.io
