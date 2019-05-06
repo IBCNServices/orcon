@@ -35,7 +35,7 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 
    ```bash
    docker login
-   ./build galgalesh/tengu-injector:v1
+   ./build ibcnservices/tengu-injector:v1
    ```
 
 ## Deploy

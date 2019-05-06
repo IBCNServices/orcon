@@ -14,7 +14,7 @@ spec:
       serviceAccountName: tengu-injector
       containers:
         - name: tengu-injector
-          image: sborny/tengu-injector:v1
+          image: ibcnservices/tengu-injector:v1
           imagePullPolicy: Always
           args:
             - -tenguCfgFile=/etc/webhook/config/tenguconfig.yaml
