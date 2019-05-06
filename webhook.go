@@ -66,7 +66,7 @@ type WhSvrParameters struct {
 type patchOperation struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
+	Value interface{} `json:"value"`
 }
 
 func init() {
@@ -250,35 +250,68 @@ func addEnvContainer(target []corev1.Container, basePath string, envVars []corev
 }
 
 func updateAnnotation(target map[string]string, added map[string]string) (patch []patchOperation) {
+	if len(target) == 0 {
+		patch = append(patch, patchOperation{
+			Op:    "add",
+			Path:  "/metadata/annotations",
+			Value: struct{}{},
+		})
+	}
 	for key, value := range added {
-		if target == nil || target[key] == "" {
-			target = map[string]string{}
-			patch = append(patch, patchOperation{
-				Op:   "add",
-				Path: "/metadata/annotations",
-				Value: map[string]string{
-					key: value,
-				},
-			})
-		} else {
-			patch = append(patch, patchOperation{
-				Op:    "replace",
-				Path:  "/metadata/annotations/" + key,
-				Value: value,
-			})
-		}
+		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
+		escapedKey := strings.Replace(key, "~", "~0", -1)
+		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
+		target = map[string]string{}
+		patch = append(patch, patchOperation{
+			Op:    "add",
+			Path:  "/metadata/annotations/" + escapedKey,
+			Value: value,
+		})
 	}
 	return patch
 }
 
-func createPatch(namespace string, pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string) ([]byte, error) {
+func updateLabel(target map[string]string, added map[string]string) (patch []patchOperation) {
+	if len(target) == 0 {
+		patch = append(patch, patchOperation{
+			Op:    "add",
+			Path:  "/metadata/annotations",
+			Value: struct{}{},
+		})
+	}
+	for key, value := range added {
+		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
+		escapedKey := strings.Replace(key, "~", "~0", -1)
+		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
+		target = map[string]string{}
+		patch = append(patch, patchOperation{
+			Op:    "add",
+			Path:  "/metadata/labels/" + escapedKey,
+			Value: value,
+		})
+	}
+	return patch
+}
+
+func addEnvironmentAsLabels(labels map[string]string, envVars []corev1.EnvVar) (patch []patchOperation) {
+	vardict := map[string]string{}
+	for _, element := range envVars {
+		vardict[element.Name] = element.Value
+	}
+	return updateLabel(labels, vardict)
+}
+
+func createPatch(namespace string, pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string, labels map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
 	envVars := populateEnvVars(pod.GetLabels(), namespace)
 	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers", envVars)...)
 	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
+	patch = append(patch, addEnvironmentAsLabels(pod.Labels, envVars)...)
 	patch = append(patch, addEnvContainer(pod.Spec.Containers, "/spec/containers", envVars)...)
+	jsonn, _ := json.Marshal(patch)
 
+	print(jsonn)
 	return json.Marshal(patch)
 }
 
@@ -305,7 +338,8 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 			// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
 			applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
 			annotations := map[string]string{"injector.tengu.io/status": "injected"}
-			patchBytes, err := createPatch(req.Namespace, &pod, whsvr.initcontainerConfig, annotations)
+			labels := map[string]string{"base-url": "injected"}
+			patchBytes, err := createPatch(req.Namespace, &pod, whsvr.initcontainerConfig, annotations, labels)
 
 			if err != nil {
 				return &v1beta1.AdmissionResponse{
