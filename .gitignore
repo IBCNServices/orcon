@@ -1,3 +1,9 @@
+# Generated deployment files 
+deployment/mutatingwebhook-ca-bundle.yaml
+
+# Compiled binaries
 relations-mutating-webhook
-telepresence.log
 debug
+
+# Logs
+telepresence.log
