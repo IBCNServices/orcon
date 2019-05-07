@@ -359,23 +359,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 				}(),
 			}
 		} else if action == "provides" {
-			// https://godoc.org/k8s.io/client-go/kubernetes/typed/core/v1#PodInterface
-			// https://godoc.org/k8s.io/apimachinery/pkg/apis/meta/v1#ListOptions
-			label := fmt.Sprintf("tengu.io/relations=%v", pod.Name)
-			relatedPods, err := clientset.CoreV1().Pods(req.Namespace).List(
-				metav1.ListOptions{
-					LabelSelector: label,
-				},
-			)
-			if err != nil {
-				glog.Errorf("Getting pods with label %s failed: %v", label, err)
-			} else {
-				for _, relatedPod := range relatedPods.Items {
-					glog.Infof("Deleting related pod %v", relatedPod.Name)
-					clientset.CoreV1().Pods(req.Namespace).Delete(relatedPod.Name, &metav1.DeleteOptions{})
-				}
-			}
-
+			// provides side is handled the `relations-controller`
 		} else {
 			glog.Warningf("Action %s not recognized", action)
 		}
