@@ -1,4 +1,6 @@
-# Relations MutatingWebhook Admission controller
+# Orchestrator Conversation
+
+This repository contains a prototype implementation of the Orchestrator Conversation; a service orchestration framework inspired by Juju.
 
 ## Prerequisites
 
@@ -31,11 +33,16 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
    sudo apt-get install go-dep
    ```
 
-2. Build and push docker image. Replace the docker repo with your own.
+2. Build the code locally
 
    ```bash
-   docker login
-   ./build ibcnservices/tengu-injector:v1
+   ./build/builder build relations-controller
+   ```
+
+3. Build the code and push the container to dockerhub.
+
+   ```bash
+   ./build/builder publish relations-controller
    ```
 
 ## Deploy
@@ -60,12 +67,12 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 3. Deploy resources
 
    ```bash
-   kubectl create -f deployment/configmap.yaml
-   kubectl create -f deployment/deployment.yaml
-   kubectl create -f deployment/service.yaml
-   kubectl create -f deployment/mutatingwebhook-ca-bundle.yaml
+   kubectl apply -f deployment/configmap.yaml
+   kubectl apply -f deployment/deployment.yaml
+   kubectl apply -f deployment/service.yaml
+   kubectl apply -f deployment/mutatingwebhook-ca-bundle.yaml
    # If RBAC is enabled
-   kubectl create -f deployment/rbac.yaml
+   kubectl apply -f deployment/rbac.yaml
    ```
 
 4. Example
@@ -73,11 +80,13 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
    ```bash
    kubectl create namespace k8s-tengu-test
    kubectl label namespace k8s-tengu-test tengu-injector=enabled
-   kubectl -n k8s-tengu-test create -f deployment/external-service.yaml
-   kubectl -n k8s-tengu-test create -f deployment/sleep-deployment.yaml
+   kubectl -n k8s-tengu-test apply -f deployment/external-service.yaml
+   kubectl -n k8s-tengu-test apply -f deployment/sleep-deployment.yaml
    ```
 
-## Develop locally
+## Development
+
+### Develop locally
 
 1. Install [Telepresence](https://www.telepresence.io/) for swapping the k8s service with a proxy that sends requests to your local machine.
 
@@ -110,7 +119,12 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
    ./relations-mutating-webhook -tenguCfgFile=/etc/webhook/config/tenguconfig.yaml -tlsCertFile=/etc/webhook/certs/cert.pem -tlsKeyFile=/etc/webhook/certs/key.pem -alsologtostderr -v=4
    ```
 
-## TODO list
+### Folder Structure
 
-- Currently the deployments are not restarted when a service becomes available with matching annotations.
-- Currently only works in de default namespace.
+This folder structure is loosely based on the ["Standard Package Layout"](https://medium.com/@benbjohnson/standard-package-layout-7cdbc8391fc1). [Illustrated example](https://medium.com/wtf-dial/wtf-dial-domain-model-9655cd523182) and [more thoughts](https://medium.com/wtf-dial/wtf-dial-re-evaluating-the-domain-32c5ec31b9e2).
+
+This project loosely follows Domain Driven Design. DDD in go [1](https://www.citerus.se/go-ddd), [2](https://www.citerus.se/part-2-domain-driven-design-in-go/), [3](https://www.citerus.se/part-3-domain-driven-design-in-go/).
+
+Golang does not permit circular dependencies. This was initially done to make it easier to write a compiler, but it turned out that it forces projects to really think about their structure and imports.
+
+Working with packages with multiple binaries: <https://ieftimov.com/post/golang-package-multiple-binaries/>

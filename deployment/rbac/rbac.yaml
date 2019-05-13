@@ -1,17 +1,17 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
- name: tengu-injector
+ name: tengu-controllers
  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
-  name: tengu-rbac
+  name: tengu-controllers
 subjects:
   - kind: ServiceAccount
     # Reference to upper's `metadata.name`
-    name: tengu-injector
+    name: tengu-controllers
     # Reference to upper's `metadata.namespace`
     namespace: default
 roleRef:

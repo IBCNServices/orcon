@@ -4,13 +4,28 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build",
+            "label": "Build relations-controller",
             "type": "shell",
-            "command": "go build",
+            "command": "build/builder build relations-controller",
             "group": {
                 "kind": "build",
                 "isDefault": true
-            }
+            },
+            "problemMatcher": [
+                "$go"
+            ],
+        },
+        {
+            "label": "Build relations-mutating-webhook",
+            "type": "shell",
+            "command": "build/builder build relations-mutating-webhook",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$go"
+            ]
         }
     ]
 }

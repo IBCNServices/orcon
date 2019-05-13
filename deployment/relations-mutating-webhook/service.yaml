@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: tengu-injector-webhook-svc
+  name: relations-mutating-webhook
   labels:
-    app: tengu-injector
+    app: relations-mutating-webhook
 spec:
   ports:
   - port: 443
     targetPort: 8080
   selector:
-    app: tengu-injector
+    app: relations-mutating-webhook

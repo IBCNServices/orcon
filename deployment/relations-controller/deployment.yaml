@@ -1,0 +1,18 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: relations-controller-deployment
+  labels:
+    app: relations-controller
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: relations-controller
+    spec:
+      serviceAccountName: tengu-controllers
+      containers:
+        - name: relations-controller
+          image: ibcnservices/relations-controller:v1
+          imagePullPolicy: Always

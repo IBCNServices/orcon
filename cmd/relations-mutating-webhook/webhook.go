@@ -6,15 +6,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/golang/glog"
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -73,7 +72,7 @@ func init() {
 	_ = corev1.AddToScheme(runtimeScheme)
 	_ = admissionregistrationv1beta1.AddToScheme(runtimeScheme)
 
-	_ = v1.AddToScheme(runtimeScheme)
+	_ = corev1.AddToScheme(runtimeScheme)
 }
 
 func createK8sClient() *kubernetes.Clientset {
@@ -152,7 +151,7 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 }
 
 // getValidService will check if the service exists and has a correct interface
-func getValidService(service string, interfaceName string, namespace string) *v1.Service {
+func getValidService(service string, interfaceName string, namespace string) *corev1.Service {
 	svc, err := clientset.CoreV1().Services(namespace).Get(service, metav1.GetOptions{})
 	if err != nil {
 		glog.Infof("Service (%s) does not exist.", service)
@@ -175,7 +174,7 @@ func getValidService(service string, interfaceName string, namespace string) *v1
 	return svc
 }
 
-func fillEnvVars(envVars *[]corev1.EnvVar, service *v1.Service, interfaceName string) {
+func fillEnvVars(envVars *[]corev1.EnvVar, service *corev1.Service, interfaceName string) {
 	annotations := service.GetAnnotations()
 
 	for _, env := range interfaceLookupDict()[interfaceName] {
@@ -204,14 +203,14 @@ func populateEnvVars(labels map[string]string, namespace string) []corev1.EnvVar
 	}
 	envVars = append(envVars, envVar)
 
-	relationName := labels["tengu.io/relations"]
-	glog.Infof("Looking for service '%s' in namespace '%s'", relationName, namespace)
-	if relationName != "" {
-		svc := getValidService(relationName, tenguInterface, namespace)
-		if svc != nil {
-			fillEnvVars(&envVars, svc, tenguInterface)
-		}
-	}
+	// relationName := labels["tengu.io/relations"]
+	// glog.Infof("Looking for service '%s' in namespace '%s'", relationName, namespace)
+	// if relationName != "" {
+	// 	svc := getValidService(relationName, tenguInterface, namespace)
+	// 	if svc != nil {
+	// 		fillEnvVars(&envVars, svc, tenguInterface)
+	// 	}
+	// }
 	return envVars
 }
 
@@ -237,89 +236,30 @@ func addInitContainer(target, added []corev1.Container, basePath string, envVars
 	return patch
 }
 
-func addEnvContainer(target []corev1.Container, basePath string, envVars []corev1.EnvVar) (patch []patchOperation) {
-	for count := range target {
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  basePath + "/" + strconv.Itoa(count) + "/env",
-			Value: envVars,
-		})
-	}
-
-	return patch
-}
-
-func updateAnnotation(target map[string]string, added map[string]string) (patch []patchOperation) {
-	if len(target) == 0 {
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  "/metadata/annotations",
-			Value: struct{}{},
-		})
-	}
-	for key, value := range added {
-		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
-		escapedKey := strings.Replace(key, "~", "~0", -1)
-		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
-		target = map[string]string{}
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  "/metadata/annotations/" + escapedKey,
-			Value: value,
-		})
-	}
-	return patch
-}
-
-func updateLabel(target map[string]string, added map[string]string) (patch []patchOperation) {
-	if len(target) == 0 {
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  "/metadata/annotations",
-			Value: struct{}{},
-		})
-	}
-	for key, value := range added {
-		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
-		escapedKey := strings.Replace(key, "~", "~0", -1)
-		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
-		target = map[string]string{}
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  "/metadata/labels/" + escapedKey,
-			Value: value,
-		})
-	}
-	return patch
-}
-
-func addEnvironmentAsLabels(labels map[string]string, envVars []corev1.EnvVar) (patch []patchOperation) {
-	vardict := map[string]string{}
-	for _, element := range envVars {
-		vardict[element.Name] = element.Value
-	}
-	return updateLabel(labels, vardict)
-}
-
-func createPatch(namespace string, pod *corev1.Pod, initcontainerConfig *Config, annotations map[string]string, labels map[string]string) ([]byte, error) {
+func createPatch(namespace string, deployment *appsv1.Deployment, initcontainerConfig *Config, annotations map[string]string, labels map[string]string) ([]byte, error) {
 	var patch []patchOperation
 
-	envVars := populateEnvVars(pod.GetLabels(), namespace)
-	patch = append(patch, addInitContainer(pod.Spec.InitContainers, initcontainerConfig.InitContainers, "/spec/initContainers", envVars)...)
-	patch = append(patch, updateAnnotation(pod.Annotations, annotations)...)
-	patch = append(patch, addEnvironmentAsLabels(pod.Labels, envVars)...)
-	patch = append(patch, addEnvContainer(pod.Spec.Containers, "/spec/containers", envVars)...)
-	jsonn, _ := json.Marshal(patch)
-
-	print(jsonn)
+	envVars := populateEnvVars(deployment.GetLabels(), namespace)
+	patch = append(
+		patch,
+		addInitContainer(deployment.Spec.Template.Spec.InitContainers, initcontainerConfig.InitContainers,
+			"/spec/template/spec/initContainers",
+			envVars)...)
+	patch = append(
+		patch,
+		updateAnnotation(deployment.Spec.Template.Annotations, annotations)...)
+	// patch = append(patch, addEnvironmentAsLabels(deployment.Labels, envVars)...)
+	patch = append(patch, addEnvContainer(deployment.Spec.Template.Spec.Containers, "/spec/template/spec/containers", envVars)...)
 	return json.Marshal(patch)
 }
 
 func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
-	var pod corev1.Pod
+	// TODO: we currently only support Deployments. We should make this more
+	// generic so we can also support individual pods etc.
+	var deployment appsv1.Deployment
 	glog.Infof(string(req.Object.Raw))
-	if err := json.Unmarshal(req.Object.Raw, &pod); err != nil {
+	if err := json.Unmarshal(req.Object.Raw, &deployment); err != nil {
 		glog.Errorf("Could not unmarshal raw object: %v", err)
 		return &v1beta1.AdmissionResponse{
 			Result: &metav1.Status{
@@ -329,17 +269,17 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	}
 
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
-		req.Kind, req.Namespace, req.Name, pod.Name, req.UID, req.Operation, req.UserInfo)
+		req.Kind, req.Namespace, req.Name, deployment.Name, req.UID, req.Operation, req.UserInfo)
 
 	//determine whether to perform mutation
-	processingRequired := mutationRequired(ignoredNamespaces, &pod.ObjectMeta)
+	processingRequired := mutationRequired(ignoredNamespaces, &deployment.ObjectMeta)
 	for _, action := range processingRequired {
 		if action == "consumes" {
 			// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
 			applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
 			annotations := map[string]string{"injector.tengu.io/status": "injected"}
 			labels := map[string]string{"base-url": "injected"}
-			patchBytes, err := createPatch(req.Namespace, &pod, whsvr.initcontainerConfig, annotations, labels)
+			patchBytes, err := createPatch(req.Namespace, &deployment, whsvr.initcontainerConfig, annotations, labels)
 
 			if err != nil {
 				return &v1beta1.AdmissionResponse{
@@ -365,7 +305,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		}
 	}
 
-	glog.Infof("Not mutating %s/%s", pod.Namespace, pod.Name)
+	glog.Infof("Not mutating %s/%s", deployment.Namespace, deployment.Name)
 	return &v1beta1.AdmissionResponse{
 		Allowed: true,
 	}

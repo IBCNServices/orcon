@@ -1,14 +1,14 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
-  name: tengu-injector-webhook-cfg
+  name: relations-mutating-webhook
   labels:
-    app: tengu-injector
+    app: relations-mutating-webhook
 webhooks:
-  - name: injector.tengu-injector.io
+  - name: relations-mutating-webhook.tengu.io
     clientConfig:
       service:
-        name: tengu-injector-webhook-svc
+        name: relations-mutating-webhook
         namespace: default
         path: "/mutate"
       caBundle: ${CA_BUNDLE}

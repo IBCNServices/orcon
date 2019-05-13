@@ -2,8 +2,6 @@ kind: Service
 apiVersion: v1
 metadata:
   name: "sse-endpoint"
-  annotations:
-    BASE_URL: "idlab-iot.tengu.io"
   labels:
     tengu.io/provides: "sse"
 spec:

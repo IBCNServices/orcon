@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -e
+
+action="$1"
+cmd_name="$2"
+
+
+#
+# Build binary
+#
+go_build(){
+    dep ensure
+    mkdir -p "bin"
+    go build -o "./bin/$cmd_name" "./cmd/$cmd_name" 
+}
+
+#
+# Build and publish docker container
+#
+docker_publish() {
+    docker_namespace="ibcnservices"
+    docker_repo="${docker_namespace}/${cmd_name}"
+
+    docker build -f "build/${cmd_name}/Dockerfile" --no-cache -t "$docker_repo" "./bin"
+    docker push "$docker_repo"
+}
+
+
+#
+# Main execution
+#
+
+go_build
+
+if [ "${action}" = "publish" ]; then
+    docker_publish
+fi
+
+echo "success!"

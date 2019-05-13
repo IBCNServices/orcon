@@ -1,20 +1,20 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: tengu-injector-webhook-deployment
+  name: relations-mutating-webhook
   labels:
-    app: tengu-injector
+    app: relations-mutating-webhook
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: tengu-injector
+        app: relations-mutating-webhook
     spec:
-      serviceAccountName: tengu-injector
+      serviceAccountName: tengu-controllers
       containers:
-        - name: tengu-injector
-          image: ibcnservices/tengu-injector:v1
+        - name: relations-mutating-webhook
+          image: ibcnservices/relations-mutating-webhook:v1
           imagePullPolicy: Always
           args:
             - -tenguCfgFile=/etc/webhook/config/tenguconfig.yaml
@@ -35,4 +35,4 @@ spec:
             secretName: tengu-injector-webhook-certs
         - name: webhook-config
           configMap:
-            name: tengu-injector-webhook-configmap
+            name: relations-mutating-webhook

@@ -2,8 +2,14 @@
 deployment/mutatingwebhook-ca-bundle.yaml
 
 # Compiled binaries
-relations-mutating-webhook
-debug
+/relations-mutating-webhook
+/relations-controller
+/debug
+/bin
+
 
 # Logs
 telepresence.log
+
+# Dependencies
+/vendor
