@@ -12,7 +12,7 @@ import (
 func GetRelatedDeployments(name string, clientset kubernetes.Interface) *[]appsv1.Deployment {
 	deploymentList, err := clientset.AppsV1().Deployments("k8s-tengu-test").List(metav1.ListOptions{
 		// https://godoc.org/k8s.io/apimachinery/pkg/apis/meta/v1#ListOptions
-		LabelSelector: "tengu.io/relations=production",
+		LabelSelector: "tengu.io/relations=" + name,
 	})
 	if err != nil {
 		log.Warn("getting related deployments failed: %v", err)

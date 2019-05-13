@@ -91,12 +91,12 @@ func (d *DeploymentPatch) ensurePodAnnotationsExist() {
 
 func (d *DeploymentPatch) ensurePodEnvironmentExists() {
 	if !d.podEnvironmentEnsured {
-		for count := range d.deployment.Spec.Template.Spec.Containers {
-			if len(d.deployment.Spec.Template.Spec.Containers[count].Env) == 0 {
+		for index := range d.deployment.Spec.Template.Spec.Containers {
+			if len(d.deployment.Spec.Template.Spec.Containers[index].Env) == 0 {
 				d.patchList = append(d.patchList, patchOperation{
 					Op:    "add",
-					Path:  "/spec/template/spec/containers/" + strconv.Itoa(count) + "/env",
-					Value: struct{}{},
+					Path:  "/spec/template/spec/containers/" + strconv.Itoa(index) + "/env",
+					Value: []struct{}{},
 				})
 			}
 		}
@@ -177,17 +177,34 @@ func (d *DeploymentPatch) AppendToPodAnnotations(config map[string]string) {
 	}
 }
 
-// AppendToPodEnvironment adds the map of environment variables to all containers that are in the original podspec
+// AppendToPodEnvironment adds the map of environment variables to all containers
+// and initcontainers that are in the original podspec
 func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 	d.ensurePodEnvironmentExists()
-	count := 0
-	for key, value := range config {
-		d.patchList = append(d.patchList, patchOperation{
-			Op:    "add",
-			Path:  "/spec/template/spec/containers/" + strconv.Itoa(count) + "/env/" + key,
-			Value: value,
-		})
-		count++
+
+	for index := range d.deployment.Spec.Template.Spec.Containers {
+		for key, value := range config {
+			d.patchList = append(d.patchList, patchOperation{
+				Op:   "add",
+				Path: "/spec/template/spec/containers/" + strconv.Itoa(index) + "/env/-",
+				Value: map[string]string{
+					"name":  key,
+					"value": value,
+				},
+			})
+		}
+	}
+	for index := range d.deployment.Spec.Template.Spec.InitContainers {
+		for key, value := range config {
+			d.patchList = append(d.patchList, patchOperation{
+				Op:   "add",
+				Path: "/spec/template/spec/initContainers/" + strconv.Itoa(index) + "/env/-",
+				Value: map[string]string{
+					"name":  key,
+					"value": value,
+				},
+			})
+		}
 	}
 }
 

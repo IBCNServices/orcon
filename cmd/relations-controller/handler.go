@@ -4,6 +4,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	core_v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
 	"gitlab.ilabt.imec.be/sborny/orcon/internal/deploymentpatch"
@@ -36,19 +37,35 @@ func (t *TestHandler) ObjectCreated(obj interface{}) {
 	service := obj.(*core_v1.Service)
 	log.Infof("    ResourceVersion: %s", service.ObjectMeta.ResourceVersion)
 	log.Infof("    ExternalName: %s", service.Spec.ExternalName)
-	log.Infof("    Phase: %s", service.ObjectMeta.Annotations["BASE_URL"])
 
 	relationConfig := map[string]string{
 		"BASE_URL": service.Spec.ExternalName,
 	}
 
 	deployments := orconlib.GetRelatedDeployments(service.Name, t.clientset)
+	log.Infof("Found related %v deployments.", len(*deployments))
 	for _, origDeployment := range *deployments {
 		deployment := deploymentpatch.New(origDeployment)
 		deployment.AppendToPodEnvironment(relationConfig)
 		// TODO: The next line is only for benchmarking, remove
 		// after benchmarks are finished.
 		deployment.AppendToPodLabels(relationConfig)
+		patch, err := deployment.GetPatchBytes()
+		if err != nil {
+			log.Errorf("Patching failed, cannot encode patch %v", err)
+			return
+		}
+		log.Infof("Patching deployment %v, patch=%v", origDeployment.Name, string(patch))
+		_, err = t.clientset.AppsV1().Deployments("k8s-tengu-test").Patch(
+			origDeployment.Name,
+			types.JSONPatchType,
+			patch,
+		)
+		if err != nil {
+			log.Errorf("Patching deployment failed: %v", err)
+		} else {
+			log.Infof("Patching deployment succeeded")
+		}
 	}
 }
 

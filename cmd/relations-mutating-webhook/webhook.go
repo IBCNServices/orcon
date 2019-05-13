@@ -56,12 +56,6 @@ type WhSvrParameters struct {
 	initcontainerCfgFile string // path to the initcontainer injector configuration file
 }
 
-type patchOperation struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
-}
-
 func init() {
 	_ = corev1.AddToScheme(runtimeScheme)
 	_ = admissionregistrationv1beta1.AddToScheme(runtimeScheme)
@@ -142,28 +136,6 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 
 	glog.Infof("Mutation policy for %v/%v: status: %q required: %v", metadata.Namespace, metadata.Name, status, processingRequired)
 	return processingRequired
-}
-
-func addInitContainer(target, added []corev1.Container, basePath string, envVars []corev1.EnvVar) (patch []patchOperation) {
-	first := len(target) == 0
-	var value interface{}
-	for _, add := range added {
-		add.Env = append(add.Env, envVars...)
-		value = add
-		path := basePath
-		if first {
-			first = false
-			value = []corev1.Container{add}
-		} else {
-			path = path + "/-"
-		}
-		patch = append(patch, patchOperation{
-			Op:    "add",
-			Path:  path,
-			Value: value,
-		})
-	}
-	return patch
 }
 
 func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
