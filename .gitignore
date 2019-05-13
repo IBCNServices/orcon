@@ -1,5 +1,5 @@
 # Generated deployment files 
-deployment/mutatingwebhook-ca-bundle.yaml
+*-generated.yaml
 
 # Compiled binaries
 /relations-mutating-webhook

@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/golang/glog"
+	glog "github.com/Sirupsen/logrus"
+	"gitlab.ilabt.imec.be/sborny/orcon/internal/deploymentpatch"
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
@@ -34,13 +35,6 @@ var (
 var ignoredNamespaces = []string{
 	metav1.NamespaceSystem,
 	metav1.NamespacePublic,
-}
-
-//Use this map to determine REQUIRED_VARS
-var interfaceLookupDict = func() map[string][]string {
-	return map[string][]string{
-		"sse": []string{"BASE_URL"},
-	}
 }
 
 //Config ...
@@ -150,70 +144,6 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 	return processingRequired
 }
 
-// getValidService will check if the service exists and has a correct interface
-func getValidService(service string, interfaceName string, namespace string) *corev1.Service {
-	svc, err := clientset.CoreV1().Services(namespace).Get(service, metav1.GetOptions{})
-	if err != nil {
-		glog.Infof("Service (%s) does not exist.", service)
-		glog.Infof("%s", err.Error())
-		return nil
-	}
-	glog.Infof("Service (%s) exists!", service)
-	labels := svc.GetLabels()
-	if _, ok := labels["tengu.io/provides"]; ok {
-		if labels["tengu.io/provides"] != interfaceName {
-			glog.Infof("Service (%s) does not have matching interface: %s", service, interfaceName)
-			return nil
-		}
-	} else {
-		glog.Infof("Service (%s) does not have labels: %s", service, "tengu.io/provides")
-		return nil
-	}
-	glog.Infof("Service (%s) matched", service)
-
-	return svc
-}
-
-func fillEnvVars(envVars *[]corev1.EnvVar, service *corev1.Service, interfaceName string) {
-	annotations := service.GetAnnotations()
-
-	for _, env := range interfaceLookupDict()[interfaceName] {
-		glog.Infof("Checking if annotation key (%s) exists", env)
-		if _, ok := annotations[env]; ok {
-			glog.Infof("Key exists, adding to envVars")
-			*envVars = append(*envVars, corev1.EnvVar{
-				Name:  env,
-				Value: annotations[env],
-			})
-		} else {
-			glog.Infof("Key does not exist")
-		}
-	}
-}
-
-func populateEnvVars(labels map[string]string, namespace string) []corev1.EnvVar {
-	envVars := []corev1.EnvVar{}
-
-	tenguInterface := labels["tengu.io/consumes"]
-	glog.Infof("tenguInterface: %s", tenguInterface)
-
-	envVar := corev1.EnvVar{
-		Name:  "TENGU_REQUIRED_VARS",
-		Value: strings.Join(interfaceLookupDict()[tenguInterface], ","),
-	}
-	envVars = append(envVars, envVar)
-
-	// relationName := labels["tengu.io/relations"]
-	// glog.Infof("Looking for service '%s' in namespace '%s'", relationName, namespace)
-	// if relationName != "" {
-	// 	svc := getValidService(relationName, tenguInterface, namespace)
-	// 	if svc != nil {
-	// 		fillEnvVars(&envVars, svc, tenguInterface)
-	// 	}
-	// }
-	return envVars
-}
-
 func addInitContainer(target, added []corev1.Container, basePath string, envVars []corev1.EnvVar) (patch []patchOperation) {
 	first := len(target) == 0
 	var value interface{}
@@ -236,23 +166,6 @@ func addInitContainer(target, added []corev1.Container, basePath string, envVars
 	return patch
 }
 
-func createPatch(namespace string, deployment *appsv1.Deployment, initcontainerConfig *Config, annotations map[string]string, labels map[string]string) ([]byte, error) {
-	var patch []patchOperation
-
-	envVars := populateEnvVars(deployment.GetLabels(), namespace)
-	patch = append(
-		patch,
-		addInitContainer(deployment.Spec.Template.Spec.InitContainers, initcontainerConfig.InitContainers,
-			"/spec/template/spec/initContainers",
-			envVars)...)
-	patch = append(
-		patch,
-		updateAnnotation(deployment.Spec.Template.Annotations, annotations)...)
-	// patch = append(patch, addEnvironmentAsLabels(deployment.Labels, envVars)...)
-	patch = append(patch, addEnvContainer(deployment.Spec.Template.Spec.Containers, "/spec/template/spec/containers", envVars)...)
-	return json.Marshal(patch)
-}
-
 func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 	req := ar.Request
 	// TODO: we currently only support Deployments. We should make this more
@@ -271,15 +184,27 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, deployment.Name, req.UID, req.Operation, req.UserInfo)
 
-	//determine whether to perform mutation
 	processingRequired := mutationRequired(ignoredNamespaces, &deployment.ObjectMeta)
 	for _, action := range processingRequired {
 		if action == "consumes" {
 			// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
 			applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
-			annotations := map[string]string{"injector.tengu.io/status": "injected"}
-			labels := map[string]string{"base-url": "injected"}
-			patchBytes, err := createPatch(req.Namespace, &deployment, whsvr.initcontainerConfig, annotations, labels)
+
+			deployment := deploymentpatch.New(deployment)
+			for _, container := range whsvr.initcontainerConfig.InitContainers {
+				// TODO: append required vars here
+				requiredVar := corev1.EnvVar{
+					Name:  "TENGU_REQUIRED_VARS",
+					Value: "BASE_URL",
+				}
+				container.Env = append(container.Env, requiredVar)
+				deployment.PrependToPodInitContainers(container)
+			}
+			deployment.AppendToAnnotations(map[string]string{
+				"injector.tengu.io/status": "injected",
+			})
+
+			patchBytes, err := deployment.GetPatchBytes()
 
 			if err != nil {
 				return &v1beta1.AdmissionResponse{

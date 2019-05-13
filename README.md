@@ -51,28 +51,31 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 
    ```bash
    ./deployment/webhook-create-signed-cert.sh \
-       --service tengu-injector-webhook-svc \
-       --secret tengu-injector-webhook-certs \
+       --service relations-mutating-webhook \
+       --secret tengu-controllers-certs \
        --namespace default
    ```
 
-2. Patch the `MutatingWebhookConfiguration` by set `caBundle` with correct value from Kubernetes cluster
+2. Patch the `MutatingWebhookConfiguration` by setting `caBundle` with correct value from Kubernetes cluster
 
    ```bash
-   cat deployment/mutatingwebhook.yaml | \
+   cat deployment/relations-mutating-webhook/webhook-config-templ.yaml | \
        deployment/webhook-patch-ca-bundle.sh > \
-       deployment/mutatingwebhook-ca-bundle.yaml
+       deployment/relations-mutating-webhook/webhook-config-generated.yaml
    ```
 
 3. Deploy resources
 
    ```bash
-   kubectl apply -f deployment/configmap.yaml
-   kubectl apply -f deployment/deployment.yaml
-   kubectl apply -f deployment/service.yaml
-   kubectl apply -f deployment/mutatingwebhook-ca-bundle.yaml
    # If RBAC is enabled
    kubectl apply -f deployment/rbac.yaml
+   # Deploy the admission controller
+   kubectl apply -f deployment/relations-mutating-webhook/controller-configmap.yaml
+   kubectl apply -f deployment/relations-mutating-webhook/controller.yaml
+   kubectl apply -f deployment/relations-mutating-webhook/service.yaml
+   kubectl apply -f deployment/relations-mutating-webhook/webhook-config-generated.yaml
+   # Deploy the regular controller
+   kubectl apply -f deployment/relations-controller/controller.yaml
    ```
 
 4. Example
@@ -80,8 +83,8 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
    ```bash
    kubectl create namespace k8s-tengu-test
    kubectl label namespace k8s-tengu-test tengu-injector=enabled
-   kubectl -n k8s-tengu-test apply -f deployment/external-service.yaml
-   kubectl -n k8s-tengu-test apply -f deployment/sleep-deployment.yaml
+   kubectl -n k8s-tengu-test apply -f deployment/demo/external-service.yaml
+   kubectl -n k8s-tengu-test apply -f deployment/demo/sleep-deployment.yaml
    ```
 
 ## Development
@@ -99,7 +102,7 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 3. Start Telepresence
 
    ```bash
-   telepresence --swap-deployment tengu-injector-webhook-deployment --expose 8080
+   telepresence --swap-deployment relations-mutating-webhook --expose 8080
    ```
 
    *Note: Telepresence warns you that vpn-tcp doesn't work with existing vpn's; but it still appears to work with our vpn.*
@@ -107,16 +110,16 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 4. Run script to simulate volume mounts and start Telepresence.
 
    ```bash
-   cd ~/go/src/gitlab.ilabt.imec.be/sborny/relations-mutating-webhook/
-   ./simulate-volume-mounts.sh
+   cd ~/go/src/gitlab.ilabt.imec.be/sborny/orcon/
+   ./scripts/simulate-volume-mounts.sh
    ```
 
-5. Build binary outside of Telepresence environment.
+5. Build binary from outside of the telepresence environment. You can use the VSCode task `Build relations-mutating-webhook` for this.
 
 6. Run binary inside of Telepresence environment.
 
    ```bash
-   ./relations-mutating-webhook -tenguCfgFile=/etc/webhook/config/tenguconfig.yaml -tlsCertFile=/etc/webhook/certs/cert.pem -tlsKeyFile=/etc/webhook/certs/key.pem -alsologtostderr -v=4
+   ./bin/relations-mutating-webhook -tenguCfgFile=/etc/webhook/config/tenguconfig.yaml -tlsCertFile=/etc/webhook/certs/cert.pem -tlsKeyFile=/etc/webhook/certs/key.pem -alsologtostderr -v=4
    ```
 
 ### Folder Structure

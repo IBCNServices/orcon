@@ -11,7 +11,8 @@ cmd_name="$2"
 go_build(){
     dep ensure
     mkdir -p "bin"
-    go build -o "./bin/$cmd_name" "./cmd/$cmd_name" 
+    # extra arguments needed for docker: https://stackoverflow.com/a/52643560/1588555
+    CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o "./bin/$cmd_name" "./cmd/$cmd_name" 
 }
 
 #
@@ -19,7 +20,7 @@ go_build(){
 #
 docker_publish() {
     docker_namespace="ibcnservices"
-    docker_repo="${docker_namespace}/${cmd_name}"
+    docker_repo="${docker_namespace}/${cmd_name}:v1"
 
     docker build -f "build/${cmd_name}/Dockerfile" --no-cache -t "$docker_repo" "./bin"
     docker push "$docker_repo"
