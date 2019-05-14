@@ -122,6 +122,10 @@ func (d *DeploymentPatch) ensurePodInitContainersExists() {
 func (d *DeploymentPatch) AppendToLabels(config map[string]string) {
 	d.ensureLabelsExist()
 	for key, value := range config {
+		if d.deployment.Labels[key] == value {
+			// Already set; nothing to do here.
+			continue
+		}
 		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
 		escapedKey := strings.Replace(key, "~", "~0", -1)
 		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
@@ -137,6 +141,10 @@ func (d *DeploymentPatch) AppendToLabels(config map[string]string) {
 func (d *DeploymentPatch) AppendToPodLabels(config map[string]string) {
 	d.ensurePodLabelsExist()
 	for key, value := range config {
+		if d.deployment.Spec.Template.Labels[key] == value {
+			// Already set; nothing to do here.
+			continue
+		}
 		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
 		escapedKey := strings.Replace(key, "~", "~0", -1)
 		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
@@ -198,6 +206,10 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 			// Key exists in environment; modifying it.
 			existingIdx := getKeyIdx(key, d.deployment.Spec.Template.Spec.Containers[index].Env)
 			if existingIdx >= 0 {
+				if d.deployment.Spec.Template.Spec.Containers[index].Env[existingIdx].Value == value {
+					// Already set, skipping.
+					continue
+				}
 				d.patchList = append(d.patchList, patchOperation{
 					Op:   "replace",
 					Path: fmt.Sprintf("/spec/template/spec/containers/%v/env/%v", strconv.Itoa(index), strconv.Itoa(existingIdx)),
@@ -223,6 +235,10 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 		for key, value := range config {
 			existingIdx := getKeyIdx(key, d.deployment.Spec.Template.Spec.InitContainers[index].Env)
 			if existingIdx >= 0 {
+				if d.deployment.Spec.Template.Spec.InitContainers[index].Env[existingIdx].Value == value {
+					// Already set, skipping.
+					continue
+				}
 				d.patchList = append(d.patchList, patchOperation{
 					Op:   "replace",
 					Path: fmt.Sprintf("/spec/template/spec/initContainers/%v/env/%v", strconv.Itoa(index), strconv.Itoa(existingIdx)),
@@ -258,5 +274,8 @@ func (d *DeploymentPatch) PrependToPodInitContainers(container corev1.Container)
 
 // GetPatchBytes returns the resulting jsonPatch
 func (d *DeploymentPatch) GetPatchBytes() ([]byte, error) {
-	return json.Marshal(d.patchList)
+	if len(d.patchList) > 0 {
+		return json.Marshal(d.patchList)
+	}
+	return []byte{}, nil
 }

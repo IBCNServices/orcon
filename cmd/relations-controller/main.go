@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	log "github.com/Sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -48,17 +49,17 @@ func main() {
 
 	// create the informer so that we can not only list resources
 	// but also watch them for all services in the default namespace
-	informer := cache.NewSharedIndexInformer(
+	serviceInformer := cache.NewSharedIndexInformer(
 		// the ListWatch contains two different functions that our
 		// informer requires: ListFunc to take care of listing and watching
 		// the resources we want to handle
 		&cache.ListWatch{
 			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
-				// list all of the services (core resource) in the deafult namespace
+				// list all of the services (core resource) in the k8s-tengu-test namespace
 				return client.CoreV1().Services("k8s-tengu-test").List(options)
 			},
 			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
-				// watch all of the services (core resource) in the default namespace
+				// watch all of the services (core resource) in the k8s-tengu-test namespace
 				return client.CoreV1().Services("k8s-tengu-test").Watch(options)
 			},
 		},
@@ -66,17 +67,36 @@ func main() {
 		0,                 // no resync (period of 0)
 		cache.Indexers{},
 	)
+	deploymentInformer := cache.NewSharedIndexInformer(
+		// the ListWatch contains two different functions that our
+		// informer requires: ListFunc to take care of listing and watching
+		// the resources we want to handle
+		&cache.ListWatch{
+			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
+				// list all of the deployment (core resource) in the k8s-tengu-test namespace
+				return client.AppsV1().Deployments("k8s-tengu-test").List(options)
+			},
+			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
+				// watch all of the deployment (core resource) in the k8s-tengu-test namespace
+				return client.AppsV1().Deployments("k8s-tengu-test").Watch(options)
+			},
+		},
+		&appsv1.Deployment{}, // the target type (Pod)
+		0,                    // no resync (period of 0)
+		cache.Indexers{},
+	)
 
 	// create a new queue so that when the informer gets a resource that is either
 	// a result of listing or watching, we can add an idenfitying key to the queue
 	// so that it can be handled in the handler
-	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	serviceQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+	deploymentQueue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
 
 	// add event handlers to handle the three types of events for resources:
 	//  - adding new resources
 	//  - updating existing resources
 	//  - deleting resources
-	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	serviceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			// convert the resource object into a key (in this case
 			// we are just doing it in the format of 'namespace/name')
@@ -84,14 +104,14 @@ func main() {
 			log.Infof("Add service: %s", key)
 			if err == nil {
 				// add the key to the queue for the handler to get
-				queue.Add(key)
+				serviceQueue.Add(key)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(newObj)
 			log.Infof("Update service: %s", key)
 			if err == nil {
-				queue.Add(key)
+				serviceQueue.Add(key)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -103,7 +123,39 @@ func main() {
 			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 			log.Infof("Delete service: %s", key)
 			if err == nil {
-				queue.Add(key)
+				serviceQueue.Add(key)
+			}
+		},
+	})
+
+	deploymentInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			// convert the resource object into a key (in this case
+			// we are just doing it in the format of 'namespace/name')
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			log.Infof("Add pod: %s", key)
+			if err == nil {
+				// add the key to the queue for the handler to get
+				deploymentQueue.Add(key)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(newObj)
+			log.Infof("Update pod: %s", key)
+			if err == nil {
+				deploymentQueue.Add(key)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			// DeletionHandlingMetaNamsespaceKeyFunc is a helper function that allows
+			// us to check the DeletedFinalStateUnknown existence in the event that
+			// a resource was deleted but it is still contained in the index
+			//
+			// this then in turn calls MetaNamespaceKeyFunc
+			key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			log.Infof("Delete pod: %s", key)
+			if err == nil {
+				deploymentQueue.Add(key)
 			}
 		},
 	})
@@ -111,11 +163,21 @@ func main() {
 	// construct the Controller object which has all of the necessary components to
 	// handle logging, connections, informing (listing and watching), the queue,
 	// and the handler
-	controller := Controller{
+	serviceController := Controller{
 		logger:    log.NewEntry(log.New()),
 		clientset: client,
-		informer:  informer,
-		queue:     queue,
+		informer:  serviceInformer,
+		queue:     serviceQueue,
+		handler: &TestHandler{
+			clientset: client,
+		},
+	}
+
+	deploymentController := Controller{
+		logger:    log.NewEntry(log.New()),
+		clientset: client,
+		informer:  deploymentInformer,
+		queue:     deploymentQueue,
 		handler: &TestHandler{
 			clientset: client,
 		},
@@ -126,7 +188,8 @@ func main() {
 	defer close(stopCh)
 
 	// run the controller loop to process items
-	go controller.Run(stopCh)
+	go serviceController.Run(stopCh)
+	go deploymentController.Run(stopCh)
 
 	// use a channel to handle OS signals to terminate and gracefully shut
 	// down processing

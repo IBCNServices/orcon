@@ -5,6 +5,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
+	core_v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -123,7 +125,19 @@ func (c *Controller) processNextItem() bool {
 		c.queue.Forget(key)
 	} else {
 		c.logger.Infof("Controller.processNextItem: object created detected: %s", keyRaw)
-		c.handler.ObjectCreated(item)
+		switch tItem := item.(type) {
+		case *core_v1.Service:
+			c.logger.Infof("Object is of type Service")
+			c.handler.ServiceCreated(tItem)
+			// here v has type T
+		case *appsv1.Deployment:
+			c.logger.Infof("Object is of type Deployment")
+			c.handler.DeploymentCreated(tItem)
+			// here v has type S
+		default:
+			c.logger.Infof("Object is of unknown type ")
+			// no match; here v has the same type as i
+		}
 		c.queue.Forget(key)
 	}
 
