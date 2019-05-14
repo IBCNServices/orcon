@@ -2,6 +2,7 @@ package deploymentpatch
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -177,33 +178,69 @@ func (d *DeploymentPatch) AppendToPodAnnotations(config map[string]string) {
 	}
 }
 
+// getKeyIdx gets the index of the given key in the env vars.
+func getKeyIdx(key string, env []corev1.EnvVar) int {
+	for index, value := range env {
+		if value.Name == key {
+			return index
+		}
+	}
+	return -1
+}
+
 // AppendToPodEnvironment adds the map of environment variables to all containers
-// and initcontainers that are in the original podspec
+// and initContainers that are in the original podspec
 func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 	d.ensurePodEnvironmentExists()
 
 	for index := range d.deployment.Spec.Template.Spec.Containers {
 		for key, value := range config {
-			d.patchList = append(d.patchList, patchOperation{
-				Op:   "add",
-				Path: "/spec/template/spec/containers/" + strconv.Itoa(index) + "/env/-",
-				Value: map[string]string{
-					"name":  key,
-					"value": value,
-				},
-			})
+			// Key exists in environment; modifying it.
+			existingIdx := getKeyIdx(key, d.deployment.Spec.Template.Spec.Containers[index].Env)
+			if existingIdx >= 0 {
+				d.patchList = append(d.patchList, patchOperation{
+					Op:   "replace",
+					Path: fmt.Sprintf("/spec/template/spec/containers/%v/env/%v", strconv.Itoa(index), strconv.Itoa(existingIdx)),
+					Value: map[string]string{
+						"name":  key,
+						"value": value,
+					},
+				})
+			} else {
+				// Key doesn't exist in environment; adding it.
+				d.patchList = append(d.patchList, patchOperation{
+					Op:   "add",
+					Path: "/spec/template/spec/containers/" + strconv.Itoa(index) + "/env/-",
+					Value: map[string]string{
+						"name":  key,
+						"value": value,
+					},
+				})
+			}
 		}
 	}
 	for index := range d.deployment.Spec.Template.Spec.InitContainers {
 		for key, value := range config {
-			d.patchList = append(d.patchList, patchOperation{
-				Op:   "add",
-				Path: "/spec/template/spec/initContainers/" + strconv.Itoa(index) + "/env/-",
-				Value: map[string]string{
-					"name":  key,
-					"value": value,
-				},
-			})
+			existingIdx := getKeyIdx(key, d.deployment.Spec.Template.Spec.InitContainers[index].Env)
+			if existingIdx >= 0 {
+				d.patchList = append(d.patchList, patchOperation{
+					Op:   "replace",
+					Path: fmt.Sprintf("/spec/template/spec/initContainers/%v/env/%v", strconv.Itoa(index), strconv.Itoa(existingIdx)),
+					Value: map[string]string{
+						"name":  key,
+						"value": value,
+					},
+				})
+			} else {
+				d.patchList = append(d.patchList, patchOperation{
+					Op:   "add",
+					Path: "/spec/template/spec/initContainers/" + strconv.Itoa(index) + "/env/-",
+					Value: map[string]string{
+						"name":  key,
+						"value": value,
+					},
+				})
+			}
 		}
 	}
 }
