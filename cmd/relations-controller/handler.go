@@ -9,8 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 
-	"gitlab.ilabt.imec.be/sborny/orcon/internal/deploymentpatch"
-	"gitlab.ilabt.imec.be/sborny/orcon/internal/orconlib"
+	"gitlab.ilabt.imec.be/tengu/orcon/internal/deploymentpatch"
+	"gitlab.ilabt.imec.be/tengu/orcon/internal/orconlib"
 )
 
 // Handler interface contains the methods that are required

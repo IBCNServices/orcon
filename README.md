@@ -110,7 +110,7 @@ The Kubernetes cluster needs a certificate signer. Instructions for the CDK bund
 4. Run script to simulate volume mounts and start Telepresence.
 
    ```bash
-   cd ~/go/src/gitlab.ilabt.imec.be/sborny/orcon/
+   cd ~/go/src/gitlab.ilabt.imec.be/tengu/orcon/
    ./scripts/simulate-volume-mounts.sh
    ```
 

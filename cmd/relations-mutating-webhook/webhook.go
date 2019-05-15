@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	glog "github.com/Sirupsen/logrus"
-	"gitlab.ilabt.imec.be/sborny/orcon/internal/deploymentpatch"
+	"gitlab.ilabt.imec.be/tengu/orcon/internal/deploymentpatch"
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
