@@ -6,7 +6,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	core_v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -126,7 +126,7 @@ func (c *Controller) processNextItem() bool {
 	} else {
 		c.logger.Infof("Controller.processNextItem: object created detected: %s", keyRaw)
 		switch tItem := item.(type) {
-		case *core_v1.Service:
+		case *corev1.Service:
 			c.logger.Infof("Object is of type Service")
 			c.handler.ServiceCreated(tItem)
 			// here v has type T

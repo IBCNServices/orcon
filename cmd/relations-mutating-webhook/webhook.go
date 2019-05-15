@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	glog "github.com/Sirupsen/logrus"
+	log "github.com/Sirupsen/logrus"
 	"gitlab.ilabt.imec.be/tengu/orcon/internal/deploymentpatch"
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/admission/v1beta1"
@@ -90,7 +90,7 @@ func loadConfig(configFile string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	glog.Infof("New configuration: sha256sum %x", sha256.Sum256(data))
+	log.Infof("New configuration: sha256sum %x", sha256.Sum256(data))
 
 	var cfg Config
 
@@ -103,12 +103,12 @@ func loadConfig(configFile string) (*Config, error) {
 
 // Check whether the target resource needs to be mutated
 func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []string {
-	glog.Infof("Called")
+	log.Infof("Called")
 	processingRequired := []string{}
 	// Skip special kubernetes system namespaces
 	for _, namespace := range ignoredList {
 		if metadata.Namespace == namespace {
-			glog.Infof("Skip mutation for %v for it's in special namespace: %v", metadata.Name, metadata.Namespace)
+			log.Infof("Skip mutation for %v for it's in special namespace: %v", metadata.Name, metadata.Namespace)
 			return processingRequired
 		}
 	}
@@ -125,7 +125,7 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 	consumes := strings.ToLower(labels["tengu.io/consumes"])
 	provides := strings.ToLower(labels["tengu.io/provides"])
 
-	glog.Infof("%s; %s; %s", status, consumes, provides)
+	log.Infof("%s; %s; %s", status, consumes, provides)
 
 	if consumes != "" && !(status == "injected") {
 		processingRequired = append(processingRequired, "consumes")
@@ -134,7 +134,7 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 		processingRequired = append(processingRequired, "provides")
 	}
 
-	glog.Infof("Mutation policy for %v/%v: status: %q required: %v", metadata.Namespace, metadata.Name, status, processingRequired)
+	log.Infof("Mutation policy for %v/%v: status: %q required: %v", metadata.Namespace, metadata.Name, status, processingRequired)
 	return processingRequired
 }
 
@@ -143,9 +143,9 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 	// TODO: we currently only support Deployments. We should make this more
 	// generic so we can also support individual pods etc.
 	var deployment appsv1.Deployment
-	glog.Infof(string(req.Object.Raw))
+	log.Infof(string(req.Object.Raw))
 	if err := json.Unmarshal(req.Object.Raw, &deployment); err != nil {
-		glog.Errorf("Could not unmarshal raw object: %v", err)
+		log.Errorf("Could not unmarshal raw object: %v", err)
 		return &v1beta1.AdmissionResponse{
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -153,7 +153,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		}
 	}
 
-	glog.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
+	log.Infof("AdmissionReview for Kind=%v, Namespace=%v Name=%v (%v) UID=%v patchOperation=%v UserInfo=%v",
 		req.Kind, req.Namespace, req.Name, deployment.Name, req.UID, req.Operation, req.UserInfo)
 
 	processingRequired := mutationRequired(ignoredNamespaces, &deployment.ObjectMeta)
@@ -186,7 +186,7 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 				}
 			}
 
-			glog.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
+			log.Infof("AdmissionResponse: patch=%v\n", string(patchBytes))
 			return &v1beta1.AdmissionResponse{
 				Allowed: true,
 				Patch:   patchBytes,
@@ -198,11 +198,11 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 		} else if action == "provides" {
 			// provides side is handled the `relations-controller`
 		} else {
-			glog.Warningf("Action %s not recognized", action)
+			log.Warningf("Action %s not recognized", action)
 		}
 	}
 
-	glog.Infof("Not mutating %s/%s", deployment.Namespace, deployment.Name)
+	log.Infof("Not mutating %s/%s", deployment.Namespace, deployment.Name)
 	return &v1beta1.AdmissionResponse{
 		Allowed: true,
 	}
@@ -216,7 +216,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(body) == 0 {
-		glog.Error("empty body")
+		log.Error("empty body")
 		http.Error(w, "empty body", http.StatusBadRequest)
 		return
 	}
@@ -224,7 +224,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	//verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		glog.Errorf("Content-Type=%s, expect application/json", contentType)
+		log.Errorf("Content-Type=%s, expect application/json", contentType)
 		http.Error(w, "invalid Content-Type, expect application/json", http.StatusUnsupportedMediaType)
 		return
 	}
@@ -232,7 +232,7 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 	var admissionResponse *v1beta1.AdmissionResponse
 	ar := v1beta1.AdmissionReview{}
 	if _, _, err := deserializer.Decode(body, nil, &ar); err != nil {
-		glog.Errorf("Can't decode body: %v", err)
+		log.Errorf("Can't decode body: %v", err)
 		admissionResponse = &v1beta1.AdmissionResponse{
 			Result: &metav1.Status{
 				Message: err.Error(),
@@ -252,12 +252,12 @@ func (whsvr *WebhookServer) serve(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := json.Marshal(admissionReview)
 	if err != nil {
-		glog.Errorf("Can't encode response: %v", err)
+		log.Errorf("Can't encode response: %v", err)
 		http.Error(w, fmt.Sprintf("could not encode response: %v", err), http.StatusInternalServerError)
 	}
-	glog.Infof("Ready to write response ...")
+	log.Infof("Ready to write response ...")
 	if _, err := w.Write(resp); err != nil {
-		glog.Errorf("Can't write response: %v", err)
+		log.Errorf("Can't write response: %v", err)
 		http.Error(w, fmt.Sprintf("could not write response: %v", err), http.StatusInternalServerError)
 	}
 }

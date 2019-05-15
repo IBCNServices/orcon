@@ -7,8 +7,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	api_v1 "k8s.io/api/core/v1"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -54,17 +54,17 @@ func main() {
 		// informer requires: ListFunc to take care of listing and watching
 		// the resources we want to handle
 		&cache.ListWatch{
-			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				// list all of the services (core resource) in the k8s-tengu-test namespace
 				return client.CoreV1().Services("k8s-tengu-test").List(options)
 			},
-			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				// watch all of the services (core resource) in the k8s-tengu-test namespace
 				return client.CoreV1().Services("k8s-tengu-test").Watch(options)
 			},
 		},
-		&api_v1.Service{}, // the target type (Service)
-		0,                 // no resync (period of 0)
+		&apiv1.Service{}, // the target type (Service)
+		0,                // no resync (period of 0)
 		cache.Indexers{},
 	)
 	deploymentInformer := cache.NewSharedIndexInformer(
@@ -72,11 +72,11 @@ func main() {
 		// informer requires: ListFunc to take care of listing and watching
 		// the resources we want to handle
 		&cache.ListWatch{
-			ListFunc: func(options meta_v1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				// list all of the deployment (core resource) in the k8s-tengu-test namespace
 				return client.AppsV1().Deployments("k8s-tengu-test").List(options)
 			},
-			WatchFunc: func(options meta_v1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				// watch all of the deployment (core resource) in the k8s-tengu-test namespace
 				return client.AppsV1().Deployments("k8s-tengu-test").Watch(options)
 			},
