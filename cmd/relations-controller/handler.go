@@ -33,7 +33,7 @@ func (t *TestHandler) Init() error {
 	return nil
 }
 
-func (t *TestHandler) addBaseURL(service *core_v1.Service, deployments *[]appsv1.Deployment) {
+func (t *TestHandler) addBaseURL(service *core_v1.Service, deployments *[]appsv1.Deployment, ctxLog *log.Entry) {
 	relationConfig := map[string]string{
 		"BASE_URL": service.Spec.ExternalName,
 	}
@@ -45,60 +45,70 @@ func (t *TestHandler) addBaseURL(service *core_v1.Service, deployments *[]appsv1
 		deployment.AppendToPodLabels(relationConfig)
 		patch, err := deployment.GetPatchBytes()
 		if err != nil {
-			log.Errorf("Patching failed, cannot encode patch %v", err)
+			ctxLog.Errorf("Patching failed, cannot encode patch %v", err)
 			continue
 		}
 		if len(patch) == 0 {
-			log.Infof("Nothing to patch..")
+			ctxLog.Infof("Nothing to patch..")
 			continue
 		}
-		log.Infof("Patching deployment %v, patch=%v", origDeployment.Name, string(patch))
+		ctxLog.WithField("patch", string(patch)).Infof("Patching deployment..")
 		_, err = t.clientset.AppsV1().Deployments("k8s-tengu-test").Patch(
 			origDeployment.Name,
 			types.JSONPatchType,
 			patch,
 		)
 		if err != nil {
-			log.Errorf("Patching deployment failed: %v", err)
+			ctxLog.Errorf("Patching deployment failed: %v", err)
 		} else {
-			log.Infof("Patching deployment succeeded")
+			ctxLog.Infof("Patching deployment succeeded")
 		}
 	}
 }
 
 // ServiceCreated is called when a service is created
 func (t *TestHandler) ServiceCreated(obj interface{}) {
-	log.Info("TestHandler.ServiceCreated")
 	// assert the type to a Service object to pull out relevant data
 	service := obj.(*core_v1.Service)
-	log.Infof("    ResourceVersion: %s", service.ObjectMeta.ResourceVersion)
-	log.Infof("    ExternalName: %s", service.Spec.ExternalName)
+	ctxLog := log.WithFields(log.Fields{
+		// '-' prefix is here so these fields are shown first in output
+		"-name-watched":            service.Name,
+		"-type-watched":            "Service",
+		"-resourceVersion-watched": service.ResourceVersion,
+	})
+	ctxLog.Info("TestHandler.ServiceCreated")
+
+	ctxLog.WithField("ExternalName", service.Spec.ExternalName).Infof("")
 
 	deployments := orconlib.GetRelatedDeployments(service.Name, t.clientset)
-	log.Infof("Found related %v deployments.", len(*deployments))
-	t.addBaseURL(service, deployments)
+	ctxLog.Infof("Found %v related deployments.", len(*deployments))
+	t.addBaseURL(service, deployments, ctxLog)
 }
 
 // DeploymentCreated is called when an deployment is created
 func (t *TestHandler) DeploymentCreated(obj interface{}) {
-	log.Info("TestHandler.ObjectCreated")
 	// assert the type to a Service object to pull out relevant data
 	deployment := obj.(*appsv1.Deployment)
-	log.Infof("    ResourceVersion: %s", deployment.ObjectMeta.ResourceVersion)
-	log.Infof("    Name: %s", deployment.ObjectMeta.Name)
+	ctxLog := log.WithFields(log.Fields{
+		// '-' prefix is here so these fields are shown first in output
+		"-name-watched":            deployment.Name,
+		"-type-watched":            "Deployment",
+		"-resourceVersion-watched": deployment.ResourceVersion,
+	})
+	ctxLog.Infof("TestHandler.DeploymentCreated")
 
 	servicename := deployment.Labels["tengu.io/relations"]
 	if servicename == "" {
-		log.Infof("Deployment %v has no relationships", deployment.ObjectMeta.Name)
+		ctxLog.Infof("Deployment has no relationships.")
 		return
 	}
 	service, err := t.clientset.CoreV1().Services("k8s-tengu-test").Get(servicename, metav1.GetOptions{})
 	if err != nil {
-		log.Warnf("Couldn't get service %v: %v", servicename, err)
+		ctxLog.Warnf("Couldn't get service %v: %v", servicename, err)
 		return
 	}
 	deployments := []appsv1.Deployment{*deployment}
-	t.addBaseURL(service, &deployments)
+	t.addBaseURL(service, &deployments, ctxLog)
 }
 
 // ObjectDeleted is called when an object is deleted

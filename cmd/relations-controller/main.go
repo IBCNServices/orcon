@@ -44,6 +44,10 @@ func getKubernetesClient() kubernetes.Interface {
 
 // main code path
 func main() {
+	// log.SetFormatter(&log.JSONFormatter{})
+	log.SetFormatter(&log.TextFormatter{
+		FullTimestamp: true,
+	})
 	// get the Kubernetes client for connectivity
 	client := getKubernetesClient()
 
@@ -55,11 +59,15 @@ func main() {
 		// the resources we want to handle
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				// list all of the services (core resource) in the k8s-tengu-test namespace
+				// list all of the services in the k8s-tengu-test namespace which
+				// have label "tengu.io/provides"
+				options.LabelSelector = "tengu.io/provides"
 				return client.CoreV1().Services("k8s-tengu-test").List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				// watch all of the services (core resource) in the k8s-tengu-test namespace
+				// watch all of the services in the k8s-tengu-test namespace which
+				// have label "tengu.io/provides"
+				options.LabelSelector = "tengu.io/provides"
 				return client.CoreV1().Services("k8s-tengu-test").Watch(options)
 			},
 		},
@@ -73,11 +81,15 @@ func main() {
 		// the resources we want to handle
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-				// list all of the deployment (core resource) in the k8s-tengu-test namespace
+				// list all of the deployments in the k8s-tengu-test namespace which
+				// have label "tengu.io/relations"
+				options.LabelSelector = "tengu.io/relations"
 				return client.AppsV1().Deployments("k8s-tengu-test").List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				// watch all of the deployment (core resource) in the k8s-tengu-test namespace
+				// watch all of the deployments in the k8s-tengu-test namespace which
+				// have label "tengu.io/relations"
+				options.LabelSelector = "tengu.io/relations"
 				return client.AppsV1().Deployments("k8s-tengu-test").Watch(options)
 			},
 		},
@@ -164,7 +176,7 @@ func main() {
 	// handle logging, connections, informing (listing and watching), the queue,
 	// and the handler
 	serviceController := Controller{
-		logger:    log.NewEntry(log.New()),
+		logger:    log.NewEntry(log.StandardLogger()),
 		clientset: client,
 		informer:  serviceInformer,
 		queue:     serviceQueue,
@@ -174,7 +186,7 @@ func main() {
 	}
 
 	deploymentController := Controller{
-		logger:    log.NewEntry(log.New()),
+		logger:    log.NewEntry(log.StandardLogger()),
 		clientset: client,
 		informer:  deploymentInformer,
 		queue:     deploymentQueue,
