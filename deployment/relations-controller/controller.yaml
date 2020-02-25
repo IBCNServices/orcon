@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: relations-controller-deployment
@@ -6,6 +6,9 @@ metadata:
     app: relations-controller
 spec:
   replicas: 1
+  selector:
+    matchLabels:
+      app: relations-controller
   template:
     metadata:
       labels:
