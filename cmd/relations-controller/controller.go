@@ -46,6 +46,13 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	c.logger.Info("Controller.Run: cache sync complete")
 
 	// run the runWorker method every second with a stop channel
+	// TODO: do this in multiple threads
+	// https://engineering.bitnami.com/articles/a-deep-dive-into-kubernetes-controllers.html
+	// https://gianarb.it/blog/kubernetes-shared-informer
+	// for i := 0; i < 1; i++ {
+	// 	go wait.Until(c.runWorker, time.Second, stopCh)
+	// }
+	// <-stopCh
 	wait.Until(c.runWorker, time.Second, stopCh)
 }
 

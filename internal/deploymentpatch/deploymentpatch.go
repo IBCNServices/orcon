@@ -13,7 +13,7 @@ import (
 // DeploymentPatch is used to modify a Deployment resource using jsonpatch
 type DeploymentPatch struct {
 	deployment appsv1.Deployment
-	patchList  []patchOperation
+	patchList  []PatchOperation
 
 	// Internal vars
 	labelsEnsured            bool
@@ -24,7 +24,8 @@ type DeploymentPatch struct {
 	podInitContainersEnsured bool
 }
 
-type patchOperation struct {
+// PatchOperation represents a single jsonpatch operation.
+type PatchOperation struct {
 	Op    string      `json:"op"`
 	Path  string      `json:"path"`
 	Value interface{} `json:"value"`
@@ -41,7 +42,7 @@ func New(deployment appsv1.Deployment) *DeploymentPatch {
 func (d *DeploymentPatch) ensureLabelsExist() {
 	if !d.labelsEnsured {
 		if len(d.deployment.Labels) == 0 {
-			d.patchList = append(d.patchList, patchOperation{
+			d.patchList = append(d.patchList, PatchOperation{
 				Op:    "add",
 				Path:  "/metadata/labels",
 				Value: struct{}{},
@@ -54,7 +55,7 @@ func (d *DeploymentPatch) ensureLabelsExist() {
 func (d *DeploymentPatch) ensurePodLabelsExist() {
 	if !d.podLabelsEnsured {
 		if len(d.deployment.Spec.Template.Labels) == 0 {
-			d.patchList = append(d.patchList, patchOperation{
+			d.patchList = append(d.patchList, PatchOperation{
 				Op:    "add",
 				Path:  "/spec/template/metadata/labels",
 				Value: struct{}{},
@@ -67,7 +68,7 @@ func (d *DeploymentPatch) ensurePodLabelsExist() {
 func (d *DeploymentPatch) ensureAnnotationsExist() {
 	if !d.annotationsEnsured {
 		if len(d.deployment.Annotations) == 0 {
-			d.patchList = append(d.patchList, patchOperation{
+			d.patchList = append(d.patchList, PatchOperation{
 				Op:    "add",
 				Path:  "/metadata/annotations",
 				Value: struct{}{},
@@ -80,7 +81,7 @@ func (d *DeploymentPatch) ensureAnnotationsExist() {
 func (d *DeploymentPatch) ensurePodAnnotationsExist() {
 	if !d.podAnnotationsEnsured {
 		if len(d.deployment.Spec.Template.Labels) == 0 {
-			d.patchList = append(d.patchList, patchOperation{
+			d.patchList = append(d.patchList, PatchOperation{
 				Op:    "add",
 				Path:  "/spec/template/metadata/annotations",
 				Value: struct{}{},
@@ -94,7 +95,7 @@ func (d *DeploymentPatch) ensurePodEnvironmentExists() {
 	if !d.podEnvironmentEnsured {
 		for index := range d.deployment.Spec.Template.Spec.Containers {
 			if len(d.deployment.Spec.Template.Spec.Containers[index].Env) == 0 {
-				d.patchList = append(d.patchList, patchOperation{
+				d.patchList = append(d.patchList, PatchOperation{
 					Op:    "add",
 					Path:  "/spec/template/spec/containers/" + strconv.Itoa(index) + "/env",
 					Value: []struct{}{},
@@ -108,7 +109,7 @@ func (d *DeploymentPatch) ensurePodEnvironmentExists() {
 func (d *DeploymentPatch) ensurePodInitContainersExists() {
 	if !d.podInitContainersEnsured {
 		if len(d.deployment.Spec.Template.Spec.InitContainers) == 0 {
-			d.patchList = append(d.patchList, patchOperation{
+			d.patchList = append(d.patchList, PatchOperation{
 				Op:    "add",
 				Path:  "/spec/template/spec/initContainers",
 				Value: []struct{}{},
@@ -129,7 +130,7 @@ func (d *DeploymentPatch) AppendToLabels(config map[string]string) {
 		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
 		escapedKey := strings.Replace(key, "~", "~0", -1)
 		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
-		d.patchList = append(d.patchList, patchOperation{
+		d.patchList = append(d.patchList, PatchOperation{
 			Op:    "add",
 			Path:  "/metadata/labels/" + escapedKey,
 			Value: value,
@@ -148,7 +149,7 @@ func (d *DeploymentPatch) AppendToPodLabels(config map[string]string) {
 		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
 		escapedKey := strings.Replace(key, "~", "~0", -1)
 		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
-		d.patchList = append(d.patchList, patchOperation{
+		d.patchList = append(d.patchList, PatchOperation{
 			Op:    "add",
 			Path:  "/spec/template/metadata/labels/" + escapedKey,
 			Value: value,
@@ -163,7 +164,7 @@ func (d *DeploymentPatch) AppendToAnnotations(config map[string]string) {
 		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
 		escapedKey := strings.Replace(key, "~", "~0", -1)
 		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
-		d.patchList = append(d.patchList, patchOperation{
+		d.patchList = append(d.patchList, PatchOperation{
 			Op:    "add",
 			Path:  "/metadata/annotations/" + escapedKey,
 			Value: value,
@@ -178,7 +179,7 @@ func (d *DeploymentPatch) AppendToPodAnnotations(config map[string]string) {
 		// https://stackoverflow.com/questions/36147137/kubernetes-api-add-label-to-pod#comment98654379_36163917
 		escapedKey := strings.Replace(key, "~", "~0", -1)
 		escapedKey = strings.Replace(escapedKey, "/", "~1", -1)
-		d.patchList = append(d.patchList, patchOperation{
+		d.patchList = append(d.patchList, PatchOperation{
 			Op:    "add",
 			Path:  "/spec/template/metadata/annotations/" + escapedKey,
 			Value: value,
@@ -210,7 +211,7 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 					// Already set, skipping.
 					continue
 				}
-				d.patchList = append(d.patchList, patchOperation{
+				d.patchList = append(d.patchList, PatchOperation{
 					Op:   "replace",
 					Path: fmt.Sprintf("/spec/template/spec/containers/%v/env/%v", strconv.Itoa(index), strconv.Itoa(existingIdx)),
 					Value: map[string]string{
@@ -220,7 +221,7 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 				})
 			} else {
 				// Key doesn't exist in environment; adding it.
-				d.patchList = append(d.patchList, patchOperation{
+				d.patchList = append(d.patchList, PatchOperation{
 					Op:   "add",
 					Path: "/spec/template/spec/containers/" + strconv.Itoa(index) + "/env/-",
 					Value: map[string]string{
@@ -239,7 +240,7 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 					// Already set, skipping.
 					continue
 				}
-				d.patchList = append(d.patchList, patchOperation{
+				d.patchList = append(d.patchList, PatchOperation{
 					Op:   "replace",
 					Path: fmt.Sprintf("/spec/template/spec/initContainers/%v/env/%v", strconv.Itoa(index), strconv.Itoa(existingIdx)),
 					Value: map[string]string{
@@ -248,7 +249,7 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 					},
 				})
 			} else {
-				d.patchList = append(d.patchList, patchOperation{
+				d.patchList = append(d.patchList, PatchOperation{
 					Op:   "add",
 					Path: "/spec/template/spec/initContainers/" + strconv.Itoa(index) + "/env/-",
 					Value: map[string]string{
@@ -265,11 +266,16 @@ func (d *DeploymentPatch) AppendToPodEnvironment(config map[string]string) {
 func (d *DeploymentPatch) PrependToPodInitContainers(container corev1.Container) {
 	d.ensurePodInitContainersExists()
 
-	d.patchList = append(d.patchList, patchOperation{
+	d.patchList = append(d.patchList, PatchOperation{
 		Op:    "add",
 		Path:  "/spec/template/spec/initContainers/0",
 		Value: container,
 	})
+}
+
+// GetPatch returns the resulting array of PatchOperation objects
+func (d *DeploymentPatch) GetPatch() []PatchOperation {
+	return d.patchList
 }
 
 // GetPatchBytes returns the resulting jsonPatch
