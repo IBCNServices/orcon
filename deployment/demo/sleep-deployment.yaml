@@ -5,6 +5,9 @@ metadata:
   labels:
     tengu.io/consumes: "sse"
     tengu.io/relations: "sse-endpoint"
+  annotations:
+    tengu.io/consumes: "sse"
+    tengu.io/relations: "sse-endpoint"
 spec:
   replicas: 1
   selector:

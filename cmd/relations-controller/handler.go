@@ -80,7 +80,7 @@ func (t *TestHandler) ServiceCreated(obj interface{}) {
 
 	ctxLog.WithField("ExternalName", service.Spec.ExternalName).Infof("")
 
-	deployments := orconlib.GetRelatedDeployments(service.Name, t.clientset)
+	deployments := orconlib.GetRelatedDeploymentsAnnotations(service.Name, t.clientset)
 	ctxLog.Infof("Found %v related deployments.", len(*deployments))
 	t.addBaseURL(service, deployments, ctxLog)
 }
