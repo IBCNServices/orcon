@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	log "github.com/Sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -97,18 +99,35 @@ func (t *TestHandler) DeploymentCreated(obj interface{}) {
 	})
 	ctxLog.Infof("TestHandler.DeploymentCreated")
 
-	servicename := deployment.Labels["tengu.io/relations"]
-	if servicename == "" {
+	// servicename := deployment.Labels["tengu.io/relations"]
+	// if servicename == "" {
+	// 	ctxLog.Infof("Deployment has no relationships.")
+	// 	return
+	// }
+	// service, err := t.clientset.CoreV1().Services("k8s-tengu-test").Get(servicename, metav1.GetOptions{})
+	// if err != nil {
+	// 	ctxLog.Warnf("Couldn't get service %v: %v", servicename, err)
+	// 	return
+	// }
+	// deployments := []appsv1.Deployment{*deployment}
+	// t.addBaseURL(service, &deployments, ctxLog)
+
+	serviceNames := deployment.Annotations["tengu.io/relations"]
+	if serviceNames == "" {
 		ctxLog.Infof("Deployment has no relationships.")
 		return
 	}
-	service, err := t.clientset.CoreV1().Services("k8s-tengu-test").Get(servicename, metav1.GetOptions{})
-	if err != nil {
-		ctxLog.Warnf("Couldn't get service %v: %v", servicename, err)
-		return
+	for _, serviceName := range strings.Split(serviceNames, ",") {
+		service, err := t.clientset.CoreV1().Services("k8s-tengu-test").Get(serviceName, metav1.GetOptions{})
+		if err != nil {
+			ctxLog.Warnf("Couldn't get service %v: %v", serviceName, err)
+			return
+		}
+		deployments := []appsv1.Deployment{*deployment}
+		// this won't work with multiple relations. They all try to change the same environment variable
+		// TODO: change names of environment variabels based on consumes/provides relationship
+		t.addBaseURL(service, &deployments, ctxLog)
 	}
-	deployments := []appsv1.Deployment{*deployment}
-	t.addBaseURL(service, &deployments, ctxLog)
 }
 
 // ObjectDeleted is called when an object is deleted
