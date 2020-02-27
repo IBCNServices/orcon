@@ -6,8 +6,8 @@ metadata:
     # tengu.io/consumes: "sse"
     tengu.io/relationships: "full"
   annotations:
-    tengu.io/consumes: "sse"
-    tengu.io/relations: "sse-endpoint"
+    tengu.io/consumes: "sse,db"
+    tengu.io/relations: "sse-endpoint,db-endpoint"
 spec:
   replicas: 1
   selector:
