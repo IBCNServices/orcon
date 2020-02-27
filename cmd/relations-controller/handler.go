@@ -35,7 +35,7 @@ func (t *TestHandler) Init() error {
 	return nil
 }
 
-func (t *TestHandler) addBaseURL(service *core_v1.Service, deployments *[]appsv1.Deployment, ctxLog *log.Entry) {
+func (t *TestHandler) addProvidesAsEnvVar(service *core_v1.Service, deployments *[]appsv1.Deployment, ctxLog *log.Entry) {
 	relationConfig := map[string]string{
 		strings.ToUpper(service.Labels["tengu.io/provides"]): service.Spec.ExternalName,
 	}
@@ -84,7 +84,7 @@ func (t *TestHandler) ServiceCreated(obj interface{}) {
 
 	deployments := orconlib.GetRelatedDeploymentsAnnotations(service.Name, t.clientset)
 	ctxLog.Infof("Found %v related deployments.", len(*deployments))
-	t.addBaseURL(service, deployments, ctxLog)
+	t.addProvidesAsEnvVar(service, deployments, ctxLog)
 }
 
 // DeploymentCreated is called when an deployment is created
@@ -126,7 +126,7 @@ func (t *TestHandler) DeploymentCreated(obj interface{}) {
 		deployments := []appsv1.Deployment{*deployment}
 		// this won't work with multiple relations. They all try to change the same environment variable
 		// TODO: change names of environment variabels based on consumes/provides relationship
-		t.addBaseURL(service, &deployments, ctxLog)
+		t.addProvidesAsEnvVar(service, &deployments, ctxLog)
 	}
 }
 
