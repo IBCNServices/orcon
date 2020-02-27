@@ -24,10 +24,12 @@ func GetRelatedDeployments(name string, clientset kubernetes.Interface) *[]appsv
 }
 
 // GetRelatedDeploymentsAnnotations return the deployments related to the resource with given name
-// expect the list of relations to be small, so linear search is OK
+// narrow search with label, but afterwards all deployments are fetched
+// linear search through list of relations
+// TODO extend with cache
 func GetRelatedDeploymentsAnnotations(name string, clientset kubernetes.Interface) *[]appsv1.Deployment {
 	deploymentList, err := clientset.AppsV1().Deployments("k8s-tengu-test").List(metav1.ListOptions{
-		LabelSelector: "tengu.io/relations",
+		LabelSelector: "tengu.io/relationships",
 	})
 	if err != nil {
 		log.Warnf("getting related deployments failed: %v", err)

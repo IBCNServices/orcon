@@ -122,8 +122,9 @@ func mutationRequired(ignoredList []string, metadata *metav1.ObjectMeta) []strin
 	}
 
 	status := strings.ToLower(annotations["injector.tengu.io/status"])
-	consumes := strings.ToLower(labels["tengu.io/consumes"])
+	// consumes := strings.ToLower(labels["tengu.io/consumes"])
 	provides := strings.ToLower(labels["tengu.io/provides"])
+	consumes := strings.ToLower(annotations["tengu.io/consumes"])
 
 	log.Infof("%s; %s; %s", status, consumes, provides)
 
@@ -162,12 +163,14 @@ func (whsvr *WebhookServer) mutate(ar *v1beta1.AdmissionReview) *v1beta1.Admissi
 			// Workaround: https://github.com/kubernetes/kubernetes/issues/57982
 			applyDefaultsWorkaround(whsvr.initcontainerConfig.InitContainers)
 
+			consumes := strings.ToUpper(deployment.Annotations["tengu.io/consumes"])
+
 			deployment := deploymentpatch.New(deployment)
 			for _, container := range whsvr.initcontainerConfig.InitContainers {
 				// TODO: append required vars here
 				requiredVar := corev1.EnvVar{
 					Name:  "TENGU_REQUIRED_VARS",
-					Value: "BASE_URL",
+					Value: consumes,
 				}
 				container.Env = append(container.Env, requiredVar)
 				deployment.PrependToPodInitContainers(container)

@@ -37,7 +37,7 @@ func (t *TestHandler) Init() error {
 
 func (t *TestHandler) addBaseURL(service *core_v1.Service, deployments *[]appsv1.Deployment, ctxLog *log.Entry) {
 	relationConfig := map[string]string{
-		"BASE_URL": service.Spec.ExternalName,
+		strings.ToUpper(service.Labels["tengu.io/provides"]): service.Spec.ExternalName,
 	}
 	for _, origDeployment := range *deployments {
 		deployment := deploymentpatch.New(origDeployment)
