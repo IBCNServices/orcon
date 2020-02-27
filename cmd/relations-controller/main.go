@@ -82,14 +82,14 @@ func main() {
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				// list all of the deployments in the k8s-tengu-test namespace which
-				// have label "tengu.io/relations"
-				options.LabelSelector = "tengu.io/relations"
+				// have label "tengu.io/relationships"
+				options.LabelSelector = "tengu.io/relationships"
 				return client.AppsV1().Deployments("k8s-tengu-test").List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				// watch all of the deployments in the k8s-tengu-test namespace which
-				// have label "tengu.io/relations"
-				options.LabelSelector = "tengu.io/relations"
+				// have label "tengu.io/relationships"
+				options.LabelSelector = "tengu.io/relationships"
 				return client.AppsV1().Deployments("k8s-tengu-test").Watch(options)
 			},
 		},

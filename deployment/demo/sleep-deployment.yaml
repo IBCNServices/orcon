@@ -3,8 +3,16 @@ kind: Deployment
 metadata:
   name: sleep
   labels:
+<<<<<<< HEAD
     tengu.io/consumes: "sse"
     tengu.io/relations: "sse-endpoint"
+=======
+    # tengu.io/consumes: "sse"
+    tengu.io/relationships: "full"
+  annotations:
+    tengu.io/consumes: "sse,db"
+    tengu.io/relations: "sse-endpoint,db-endpoint"
+>>>>>>> annotations
 spec:
   replicas: 1
   selector:

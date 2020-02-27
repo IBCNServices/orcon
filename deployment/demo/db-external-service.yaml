@@ -1,0 +1,9 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: "db-endpoint"
+  labels:
+    tengu.io/provides: "db"
+spec:
+  type: ExternalName
+  externalName: db.tengu.io
