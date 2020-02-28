@@ -6,7 +6,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
-	core_v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
@@ -35,9 +35,13 @@ func (t *TestHandler) Init() error {
 	return nil
 }
 
-func (t *TestHandler) addProvidesAsEnvVar(service *core_v1.Service, deployments *[]appsv1.Deployment, ctxLog *log.Entry) {
-	relationConfig := map[string]string{
-		strings.ToUpper(service.Labels["tengu.io/provides"]): service.Spec.ExternalName,
+func (t *TestHandler) addProvidesAsEnvVar(services []*corev1.Service, deployments *[]appsv1.Deployment, ctxLog *log.Entry) {
+	// relationConfig := map[string]string{
+	// 	strings.ToUpper(service.Labels["tengu.io/provides"]): service.Spec.ExternalName,
+	// }
+	relationConfig := make(map[string]string)
+	for _, service := range services {
+		relationConfig[strings.ToUpper(service.Labels["tengu.io/provides"])] = service.Spec.ExternalName
 	}
 	for _, origDeployment := range *deployments {
 		deployment := deploymentpatch.New(origDeployment)
@@ -71,7 +75,7 @@ func (t *TestHandler) addProvidesAsEnvVar(service *core_v1.Service, deployments 
 // ServiceCreated is called when a service is created
 func (t *TestHandler) ServiceCreated(obj interface{}) {
 	// assert the type to a Service object to pull out relevant data
-	service := obj.(*core_v1.Service)
+	service := obj.(*corev1.Service)
 	ctxLog := log.WithFields(log.Fields{
 		// '-' prefix is here so these fields are shown first in output
 		"-name-watched":            service.Name,
@@ -84,7 +88,8 @@ func (t *TestHandler) ServiceCreated(obj interface{}) {
 
 	deployments := orconlib.GetRelatedDeploymentsAnnotations(service.Name, t.clientset)
 	ctxLog.Infof("Found %v related deployments.", len(*deployments))
-	t.addProvidesAsEnvVar(service, deployments, ctxLog)
+	services := []*corev1.Service{service}
+	t.addProvidesAsEnvVar(services, deployments, ctxLog)
 }
 
 // DeploymentCreated is called when an deployment is created
@@ -117,17 +122,17 @@ func (t *TestHandler) DeploymentCreated(obj interface{}) {
 		ctxLog.Infof("Deployment has no relationships.")
 		return
 	}
+	var services []*corev1.Service
 	for _, serviceName := range strings.Split(serviceNames, ",") {
 		service, err := t.clientset.CoreV1().Services("k8s-tengu-test").Get(serviceName, metav1.GetOptions{})
 		if err != nil {
 			ctxLog.Warnf("Couldn't get service %v: %v", serviceName, err)
-			return
+		} else {
+			services = append(services, service)
 		}
-		deployments := []appsv1.Deployment{*deployment}
-		// this won't work with multiple relations. They all try to change the same environment variable
-		// TODO: change names of environment variabels based on consumes/provides relationship
-		t.addProvidesAsEnvVar(service, &deployments, ctxLog)
 	}
+	deployments := []appsv1.Deployment{*deployment}
+	t.addProvidesAsEnvVar(services, &deployments, ctxLog)
 }
 
 // ObjectDeleted is called when an object is deleted
