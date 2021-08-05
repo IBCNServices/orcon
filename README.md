@@ -131,3 +131,9 @@ This project loosely follows Domain Driven Design. DDD in go [1](https://www.cit
 Golang does not permit circular dependencies. This was initially done to make it easier to write a compiler, but it turned out that it forces projects to really think about their structure and imports.
 
 Working with packages with multiple binaries: <https://ieftimov.com/post/golang-package-multiple-binaries/>
+
+## Copyright
+
+This software is available under the GNU Affero General Public License version 3.
+
+This software was created in the [IDLab research group](https://idlab.technology/) of [Ghent University](https://www.ugent.be/en) - [imec](https://www.imec-int.com/en) in Belgium.
