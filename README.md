@@ -1,6 +1,6 @@
-# Orchestrator Conversation
+# orcon: a Kubernetes relationship orchestrator
 
-This repository contains a prototype implementation of the Orchestrator Conversation; a service orchestration framework inspired by Juju.
+This repository contains a prototype implementation of the Orchestrator Conversation; a service orchestration framework for Kubernetes.
 
 ## Prerequisites
 
